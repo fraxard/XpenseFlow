@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 24 24">
+
+    <!-- White circular background -->
+    <circle cx="12" cy="12" r="12" fill="white"/>
+
+    <!-- Camera -->
+    <g fill="none"
+       stroke="#111827"
+       stroke-width="1.8"
+       stroke-linecap="round"
+       stroke-linejoin="round">
+        <path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2h2a1 1 0 0 1 1 1v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
+        <circle cx="16" cy="14" r="1.4" fill="#111827" stroke="none"/>
+    </g>
+
+</svg>
