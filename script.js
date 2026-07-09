@@ -33,10 +33,17 @@ const receiptError = document.getElementById('receipt-error');
 const receiptLightbox = document.getElementById('receipt-lightbox');
 const lightboxImg = document.getElementById('lightbox-img');
 const lightboxClose = document.getElementById('lightbox-close');
-
 const ITEMS_PER_PAGE = 7;
 let currentPage = 1;
 const paginationEl = document.getElementById('pagination');
+const searchToggle = document.getElementById('search-toggle');
+const searchBar = document.getElementById('search-bar');
+const searchInput = document.getElementById('search-input');
+const filterBtn = document.getElementById('filter-btn');
+const filterDropdown = document.getElementById('filter-dropdown');
+const noResults = document.getElementById('no-results');
+let searchQuery = '';
+let filterBy = 'name';
 
 // The currently attached receipt image, as a base64 data URL, or null if none.
 let receiptImage = null;
@@ -485,9 +492,10 @@ function initTheme() {
 }
 
 
-function renderPagination() {
+function renderPagination(total) {
     if (!paginationEl) return;
-    const totalPages = Math.ceil(transactions.length / ITEMS_PER_PAGE);
+
+    const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
     paginationEl.innerHTML = '';
 
     if (totalPages <= 1) return;
@@ -497,7 +505,10 @@ function renderPagination() {
     prev.className = 'page-btn';
     prev.textContent = '←';
     prev.disabled = currentPage === 1;
-    prev.addEventListener('click', () => { currentPage--; init(); });
+    prev.addEventListener('click', () => {
+        currentPage--;
+        init();
+    });
     paginationEl.appendChild(prev);
 
     // Page number buttons
@@ -505,7 +516,12 @@ function renderPagination() {
         const btn = document.createElement('button');
         btn.className = 'page-btn' + (i === currentPage ? ' active' : '');
         btn.textContent = i;
-        btn.addEventListener('click', () => { currentPage = i; init(); });
+
+        btn.addEventListener('click', () => {
+            currentPage = i;
+            init();
+        });
+
         paginationEl.appendChild(btn);
     }
 
@@ -514,43 +530,73 @@ function renderPagination() {
     next.className = 'page-btn';
     next.textContent = '→';
     next.disabled = currentPage === totalPages;
-    next.addEventListener('click', () => { currentPage++; init(); });
+
+    next.addEventListener('click', () => {
+        currentPage++;
+        init();
+    });
+
     paginationEl.appendChild(next);
 }
 
 
 
-// Init app
-// function init() {
-//     list.innerHTML = '';
-//     transactions.forEach(addTransDOM);
-//     updateValues();
+function getFilteredTransactions() {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return transactions;
 
-//     // Toggle empty state
-//     if (transactions.length === 0) {
-//         emptyState.classList.add('is-visible');
-//     } else {
-//         emptyState.classList.remove('is-visible');
-//     }
-// }
+    return transactions.filter(t => {
+        switch (filterBy) {
+            case 'name':
+                return t.text.toLowerCase().includes(q);
+            case 'category':
+                return (t.category || '').toLowerCase().includes(q);
+            case 'date':
+                return (t.date || '').includes(q) || formatDate(t.date).toLowerCase().includes(q);
+            case 'type':
+                return (t.amount > 0 ? 'income' : 'expense').includes(q);
+            case 'amount':
+                return String(Math.abs(t.amount)).includes(q);
+            default:
+                return true;
+        }
+    });
+}
+
 function init() {
     list.innerHTML = '';
 
-    // Clamp currentPage in case transactions were deleted
-    const totalPages = Math.max(1, Math.ceil(transactions.length / ITEMS_PER_PAGE));
-    if (currentPage > totalPages) currentPage = totalPages;
+    // Get filtered transactions and reverse them (newest first)
+    const filtered = [...getFilteredTransactions()].reverse();
 
+    // Clamp current page based on FILTERED results
+    const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+
+    if (currentPage > totalPages) {
+        currentPage = totalPages;
+    }
+
+    // Paginate filtered list
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    const reversed = [...transactions].reverse();
-    const pageItems = reversed.slice(start, start + ITEMS_PER_PAGE);
+    const pageItems = filtered.slice(start, start + ITEMS_PER_PAGE);
 
+    // Render current page
     pageItems.forEach(addTransDOM);
+
+    // Totals should always use ALL transactions
     updateValues();
-    renderPagination();
-    if (transactions.length === 0) {
-        emptyState.classList.add('is-visible');
-    } else {
-        emptyState.classList.remove('is-visible');
+
+    // Render pagination based on filtered results
+    renderPagination(filtered.length);
+
+    // Empty state logic
+    const hasTransactions = transactions.length > 0;
+    const hasResults = filtered.length > 0;
+
+    emptyState.classList.toggle('is-visible', !hasTransactions);
+
+    if (typeof noResults !== 'undefined' && noResults) {
+        noResults.classList.toggle('is-visible', hasTransactions && !hasResults);
     }
 }
 
@@ -785,5 +831,63 @@ receiptLightbox.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && receiptLightbox.classList.contains('is-visible')) {
         closeLightbox();
+    }
+});
+
+
+// Search toggle
+searchToggle.addEventListener('click', () => {
+    const isOpen = searchBar.classList.toggle('is-open');
+    searchToggle.classList.toggle('is-active', isOpen);
+    if (isOpen) {
+        searchInput.focus();
+    } else {
+        searchInput.value = '';
+        searchQuery = '';
+        filterDropdown.classList.remove('is-open');
+        filterBtn.classList.remove('is-active');
+        currentPage = 1;
+        init();
+    }
+});
+
+// Search input
+searchInput.addEventListener('input', () => {
+    searchQuery = searchInput.value;
+    currentPage = 1;
+    init();
+});
+
+// Filter button toggle
+filterBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = filterDropdown.classList.toggle('is-open');
+    filterBtn.classList.toggle('is-active', isOpen);
+});
+
+// Filter radio selection
+filterDropdown.addEventListener('change', (e) => {
+    if (e.target.name === 'filter') {
+        filterBy = e.target.value;
+        currentPage = 1;
+        init();
+        filterDropdown.classList.remove('is-open');
+        filterBtn.classList.remove('is-active');
+        if (searchInput.value) searchInput.focus();
+    }
+});
+
+// Close filter dropdown when clicking outside
+document.addEventListener('click', (e) => {
+    if (!filterDropdown.contains(e.target) && e.target !== filterBtn) {
+        filterDropdown.classList.remove('is-open');
+        filterBtn.classList.remove('is-active');
+    }
+});
+
+// Close search on Escape
+searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        searchToggle.click();
     }
 });

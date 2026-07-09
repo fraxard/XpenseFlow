@@ -203,12 +203,48 @@
       </section>
 
       <section class="card history-card">
-        <h2 class="card-title">History</h2>
-        <p class="card-subtitle">Hover a transaction to edit or delete it</p>
+        <div class="history-header">
+          <div class="history-header-left">
+            <h2 class="card-title">History</h2>
+            <p class="card-subtitle">Hover a transaction to edit or delete it</p>
+          </div>
+          <div class="history-search-wrap">
+            <div id="search-bar" class="search-bar">
+              <input type="text" id="search-input" class="search-input" placeholder="Search transactions…">
+              <div class="filter-wrap">
+                <button type="button" id="filter-btn" class="filter-btn" title="Filter by">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <line x1="4" y1="6" x2="20" y2="6" />
+                    <line x1="8" y1="12" x2="16" y2="12" />
+                    <line x1="11" y1="18" x2="13" y2="18" />
+                  </svg>
+                </button>
+                <div id="filter-dropdown" class="filter-dropdown">
+                  <span class="filter-label">Filter by</span>
+                  <label class="filter-option"><input type="radio" name="filter" value="name" checked> Name</label>
+                  <label class="filter-option"><input type="radio" name="filter" value="category"> Category</label>
+                  <label class="filter-option"><input type="radio" name="filter" value="date"> Date</label>
+                  <label class="filter-option"><input type="radio" name="filter" value="type"> Type
+                    (income/expense)</label>
+                  <label class="filter-option"><input type="radio" name="filter" value="amount"> Amount</label>
+                </div>
+              </div>
+            </div>
+            <button type="button" id="search-toggle" class="search-toggle" title="Search transactions">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <path d="M21 21l-4.35-4.35" />
+              </svg>
+            </button>
+          </div>
+        </div>
         <ul id="list" class="list"></ul>
         <div id="empty-state" class="empty-state">
           <p>No transactions yet.</p>
         </div>
+        <div id="no-results" class="no-results">No transactions match your search.</div>
         <div id="pagination" class="pagination"></div>
       </section>
 
