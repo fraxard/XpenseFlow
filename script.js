@@ -481,10 +481,57 @@ function initTheme() {
 }
 
 // Init app
+const PAGE_SIZE = 7;
+let currentPage = 1;
+
+function setPaginationFromTotalPages(totalPages) {
+    currentPage = clampPage(currentPage);
+    updatePaginationUI(totalPages);
+}
+
+
+function getOrderedTransactionsNewestFirst() {
+    return transactions.slice().reverse();
+}
+
+function clampPage(page) {
+    const totalPages = Math.max(1, Math.ceil(transactions.length / PAGE_SIZE));
+    return Math.min(Math.max(1, page), totalPages);
+}
+
+function getPagedTransactions() {
+    const ordered = getOrderedTransactionsNewestFirst();
+    const totalPages = Math.max(1, Math.ceil(ordered.length / PAGE_SIZE));
+    currentPage = clampPage(currentPage);
+
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const end = start + PAGE_SIZE;
+    return {
+        items: ordered.slice(start, end),
+        totalPages,
+        totalItems: ordered.length
+    };
+}
+
+function updatePaginationUI(totalPages) {
+    const info = document.getElementById('pagination-info');
+    const prevBtn = document.getElementById('pagination-prev');
+    const nextBtn = document.getElementById('pagination-next');
+
+    if (!info || !prevBtn || !nextBtn) return;
+
+    info.textContent = `Page ${currentPage} of ${totalPages}`;
+    prevBtn.disabled = currentPage <= 1;
+    nextBtn.disabled = currentPage >= totalPages;
+}
+
 function init() {
     list.innerHTML = '';
-    transactions.forEach(addTransDOM);
+
+    const { items, totalPages } = getPagedTransactions();
+    items.forEach(addTransDOM);
     updateValues();
+
 
     // Toggle empty state
     if (transactions.length === 0) {
@@ -492,12 +539,33 @@ function init() {
     } else {
         emptyState.classList.remove('is-visible');
     }
+
+    updatePaginationUI(totalPages);
+    currentPage = clampPage(currentPage);
 }
+
+
+
 
 populateCategories('expense');
 dateInput.value = todayString();
 initTheme();
 init();
+
+// Pagination controls
+const paginationPrev = document.getElementById('pagination-prev');
+const paginationNext = document.getElementById('pagination-next');
+
+paginationPrev?.addEventListener('click', () => {
+    currentPage -= 1;
+    init();
+});
+
+paginationNext?.addEventListener('click', () => {
+    currentPage += 1;
+    init();
+});
+
 
 form.addEventListener('submit', addTrans);
 cancelBtn.addEventListener('click', resetForm);

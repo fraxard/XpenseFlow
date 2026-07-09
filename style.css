@@ -843,7 +843,45 @@ body.light-theme .btn:focus {
 
 /* ---------- History list ---------- */
 
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.pagination-info {
+    font-size: 13px;
+    color: var(--color-text-faint);
+    font-weight: 600;
+    font-family: var(--font-body);
+}
+
+.pagination-btn {
+    cursor: pointer;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface-muted);
+    color: var(--color-text);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    font-weight: 700;
+    font-size: 13px;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.pagination-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background: var(--color-surface);
+    border-color: #45454d;
+}
+
 .list {
+
     list-style-type: none;
     padding: 0;
     margin: 0;
