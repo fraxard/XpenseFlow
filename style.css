@@ -364,7 +364,10 @@ body.light-theme .card {
 .history-card {
     display: flex;
     flex-direction: column;
-    min-height: 0;
+    min-height: 520px;
+}
+.history-card .list {
+    flex: 1;
 }
 
 /* ---------- Form ---------- */
@@ -850,8 +853,8 @@ body.light-theme .btn:focus {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    max-height: 420px;
-    overflow-y: auto;
+    /* max-height: 420px;
+    overflow-y: auto; */
 }
 
 .empty-state {
@@ -1198,4 +1201,54 @@ body.light-theme .theme-toggle:hover {
 body.light-theme .guide-tip {
     background: #eef0f4;
     color: #1f2430;
+}
+
+ /* pagination */
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding-top: 16px;
+    margin-top: auto;         /* pushes to bottom of the card */
+    border-top: 1px solid var(--color-border);
+    flex-wrap: wrap;
+}
+
+.pagination:empty {
+    display: none;
+}
+
+.page-btn {
+    min-width: 34px;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-muted);
+    color: var(--color-text-muted);
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.page-btn:hover:not(:disabled) {
+    background: var(--color-border);
+    color: var(--color-text);
+}
+
+.page-btn.active {
+    background: var(--color-surface);
+    border-color: var(--color-text-faint);
+    color: var(--color-text);
+}
+
+.page-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
 }

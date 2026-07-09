@@ -34,6 +34,10 @@ const receiptLightbox = document.getElementById('receipt-lightbox');
 const lightboxImg = document.getElementById('lightbox-img');
 const lightboxClose = document.getElementById('lightbox-close');
 
+const ITEMS_PER_PAGE = 7;
+let currentPage = 1;
+const paginationEl = document.getElementById('pagination');
+
 // The currently attached receipt image, as a base64 data URL, or null if none.
 let receiptImage = null;
 
@@ -480,13 +484,69 @@ function initTheme() {
     applyTheme(initialTheme);
 }
 
+
+function renderPagination() {
+    if (!paginationEl) return;
+    const totalPages = Math.ceil(transactions.length / ITEMS_PER_PAGE);
+    paginationEl.innerHTML = '';
+
+    if (totalPages <= 1) return;
+
+    // Prev button
+    const prev = document.createElement('button');
+    prev.className = 'page-btn';
+    prev.textContent = '←';
+    prev.disabled = currentPage === 1;
+    prev.addEventListener('click', () => { currentPage--; init(); });
+    paginationEl.appendChild(prev);
+
+    // Page number buttons
+    for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement('button');
+        btn.className = 'page-btn' + (i === currentPage ? ' active' : '');
+        btn.textContent = i;
+        btn.addEventListener('click', () => { currentPage = i; init(); });
+        paginationEl.appendChild(btn);
+    }
+
+    // Next button
+    const next = document.createElement('button');
+    next.className = 'page-btn';
+    next.textContent = '→';
+    next.disabled = currentPage === totalPages;
+    next.addEventListener('click', () => { currentPage++; init(); });
+    paginationEl.appendChild(next);
+}
+
+
+
 // Init app
+// function init() {
+//     list.innerHTML = '';
+//     transactions.forEach(addTransDOM);
+//     updateValues();
+
+//     // Toggle empty state
+//     if (transactions.length === 0) {
+//         emptyState.classList.add('is-visible');
+//     } else {
+//         emptyState.classList.remove('is-visible');
+//     }
+// }
 function init() {
     list.innerHTML = '';
-    transactions.forEach(addTransDOM);
-    updateValues();
 
-    // Toggle empty state
+    // Clamp currentPage in case transactions were deleted
+    const totalPages = Math.max(1, Math.ceil(transactions.length / ITEMS_PER_PAGE));
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    const reversed = [...transactions].reverse();
+    const pageItems = reversed.slice(start, start + ITEMS_PER_PAGE);
+
+    pageItems.forEach(addTransDOM);
+    updateValues();
+    renderPagination();
     if (transactions.length === 0) {
         emptyState.classList.add('is-visible');
     } else {
@@ -494,9 +554,11 @@ function init() {
     }
 }
 
+
 populateCategories('expense');
 dateInput.value = todayString();
 initTheme();
+currentPage = 1; // Reset to first page on load
 init();
 
 form.addEventListener('submit', addTrans);
