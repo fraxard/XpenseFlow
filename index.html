@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <title>XpenseFlow</title>
+</head>
+
+<body>
+  <div class="page">
+
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2h2a1 1 0 0 1 1 1v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+            <circle cx="16" cy="14" r="1.4" fill="currentColor" stroke="none" />
+          </svg>
+        </span>
+        <span class="brand-name">XpenseFlow</span>
+      </div>
+      <div class="header-actions">
+        <div class="currency-row">
+          <label for="currency">Currency</label>
+          <select id="currency">
+            <option value="USD">USD ($)</option>
+            <option value="EUR">EUR (€)</option>
+            <option value="GBP">GBP (£)</option>
+            <option value="INR">INR (₹)</option>
+            <option value="JPY">JPY (¥)</option>
+            <option value="AUD">AUD ($)</option>
+            <option value="CAD">CAD ($)</option>
+          </select>
+        </div>
+        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle Theme">
+
+          <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5" />
+            <path
+              d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+          </svg>
+
+          <svg class="moon-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+          </svg>
+
+        </button>
+      </div>
+
+
+    </header>
+
+    <main class="dashboard">
+
+      <section class="hero-card">
+        <span class="hero-blob blob-1"></span>
+        <span class="hero-blob blob-2"></span>
+        <div class="hero-content">
+          <span class="hero-label">Your Balance</span>
+          <h1 id="balance" class="hero-balance">$0.00</h1>
+
+          <div class="hero-stats">
+            <div class="hero-stat">
+              <span class="hero-stat-icon income">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <path d="M12 19V5" />
+                  <path d="M5 12l7-7 7 7" />
+                </svg>
+              </span>
+              <div class="hero-stat-text">
+                <span class="hero-stat-label">Income</span>
+                <span id="money-plus" class="hero-stat-value">$0.00</span>
+              </div>
+            </div>
+
+            <span class="hero-stat-divider"></span>
+
+            <div class="hero-stat">
+              <span class="hero-stat-icon expense">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <path d="M12 5v14" />
+                  <path d="M19 12l-7 7-7-7" />
+                </svg>
+              </span>
+              <div class="hero-stat-text">
+                <span class="hero-stat-label">Expense</span>
+                <span id="money-minus" class="hero-stat-value">$0.00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card form-card">
+        <h2 class="card-title">Add transaction</h2>
+
+
+        <div id="guide-tip" class="guide-tip">
+          👋 Start by adding your first transaction.
+        </div>
+
+        <form id="form">
+          <div class="form-control">
+            <label for="text">Transaction name</label>
+            <input type="text" id="text" placeholder="e.g. Coffee with a friend">
+            <span class="error-message" id="text-error"></span>
+          </div>
+
+          <div class="form-control">
+            <label>Type</label>
+            <div class="type-toggle" role="radiogroup" aria-label="Transaction type">
+              <input type="radio" id="type-expense" name="type" value="expense" checked>
+              <label for="type-expense" class="type-btn expense-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <path d="M12 5v14" />
+                  <path d="M19 12l-7 7-7-7" />
+                </svg>
+                Expense
+              </label>
+              <input type="radio" id="type-income" name="type" value="income">
+              <label for="type-income" class="type-btn income-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <path d="M12 19V5" />
+                  <path d="M5 12l7-7 7 7" />
+                </svg>
+                Income
+              </label>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-control category-control">
+              <label for="category">Category</label>
+              <div class="category-row">
+                <select id="category"></select>
+                <button type="button" id="add-category-toggle" class="add-category-toggle" title="Add a custom category"
+                  aria-expanded="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <path d="M12 5v14" />
+                    <path d="M5 12h14" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-control">
+              <label for="amount">Amount</label>
+              <input type="number" id="amount" placeholder="0.00" min="0" step="0.01">
+              <span class="error-message" id="amount-error"></span>
+            </div>
+          </div>
+
+          <div id="add-category-panel" class="add-category-panel">
+            <div class="add-category-input-row">
+              <input type="text" id="new-category-input" placeholder="e.g. Pets, Gym, College" maxlength="24">
+              <button type="button" id="save-category-btn" class="btn btn-small">Add</button>
+            </div>
+            <span class="error-message" id="new-category-error"></span>
+            <div id="category-chips" class="category-chips"></div>
+          </div>
+
+          <div class="form-control">
+            <label for="date">Date</label>
+            <input type="date" id="date">
+            <span class="error-message" id="date-error"></span>
+          </div>
+
+          <div class="form-control">
+            <label for="receipt">Receipt <span class="optional-tag">(optional)</span></label>
+
+            <div class="receipt-field">
+              <input type="file" id="receipt" class="receipt-input" accept="image/*">
+
+              <label for="receipt" id="receipt-dropzone" class="receipt-dropzone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <path d="M12 16V4" />
+                  <path d="M7 9l5-5 5 5" />
+                  <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+                </svg>
+                <span>Click to attach a photo</span>
+              </label>
+
+              <div id="receipt-preview" class="receipt-preview"></div>
+            </div>
+
+            <span class="error-message" id="receipt-error"></span>
+          </div>
+
+          <button type="submit" class="btn" id="submit-btn">Add transaction</button>
+          <button type="button" class="btn btn-cancel" id="cancel-btn">Cancel edit</button>
+        </form>
+      </section>
+
+      <section class="card history-card">
+        <h2 class="card-title">History</h2>
+        <p class="card-subtitle">Hover a transaction to edit or delete it</p>
+        <ul id="list" class="list"></ul>
+        <div id="empty-state" class="empty-state">
+          <p>No transactions yet.</p>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="app-footer">by fraxard, v0.5</footer>
+  </div>
+
+  <div id="welcome-modal" class="modal">
+    <div class="modal-content">
+      <h2 class="modal-title">Welcome to Expense Tracker</h2>
+      <div class="modal-features">
+        <div class="feature feature-income">
+          <span class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M12 19V5" />
+              <path d="M5 12l7-7 7 7" />
+            </svg>
+          </span>
+          <span class="feature-text">Add income</span>
+        </div>
+        <div class="feature feature-expense">
+          <span class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M12 5v14" />
+              <path d="M19 12l-7 7-7-7" />
+            </svg>
+          </span>
+          <span class="feature-text">Add expenses</span>
+        </div>
+        <div class="feature feature-category">
+          <span class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+              <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
+              <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+            </svg>
+          </span>
+          <span class="feature-text">Categories</span>
+        </div>
+        <div class="feature feature-report">
+          <span class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <line x1="12" y1="2" x2="12" y2="22" />
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+          </span>
+          <span class="feature-text">Reports</span>
+        </div>
+      </div>
+      <button id="get-started-btn" class="btn modal-btn">Get Started</button>
+    </div>
+  </div>
+
+  <div id="receipt-lightbox" class="modal receipt-lightbox">
+    <div class="modal-content lightbox-content">
+      <button type="button" id="lightbox-close" class="lightbox-close" aria-label="Close">&times;</button>
+      <img id="lightbox-img" class="lightbox-img" src="" alt="Receipt">
+    </div>
+  </div>
+
+</body>
+
+<script src="script.js"></script>
+
+</html>
