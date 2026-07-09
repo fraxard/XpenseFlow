@@ -1,6 +1,6 @@
 <div align="center">
 
-# 💸 XpenseFlow
+# XpenseFlow
 
 ### A modern, lightweight expense tracker built with Vanilla JavaScript, as of v0.5
 
@@ -16,7 +16,7 @@ Track your income and expenses, organize transactions with categories, attach re
 
 ---
 
-## ✨ Overview
+## Overview
 
 XpenseFlow is a clean and responsive expense tracking web application designed to help users record daily transactions without requiring an account or backend server.
 
@@ -324,7 +324,7 @@ This project is licensed under the MIT License.
 
 <div align="center">
 
-Built with ❤️ by **fraxard**
+Built by **fraxard**
 
 If you found this project useful, consider giving it a ⭐ on GitHub.
 
