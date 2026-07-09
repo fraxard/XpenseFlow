@@ -203,42 +203,63 @@
       </section>
 
       <section class="card history-card">
+        <!-- FIX 2: history-header now stacks into two rows when search is open -->
         <div class="history-header">
-          <div class="history-header-left">
-            <h2 class="card-title">History</h2>
-            <p class="card-subtitle">Hover a transaction to edit or delete it</p>
-          </div>
-          <div class="history-search-wrap">
-            <div id="search-bar" class="search-bar">
-              <input type="text" id="search-input" class="search-input" placeholder="Search transactions…">
-              <div class="filter-wrap">
-                <button type="button" id="filter-btn" class="filter-btn" title="Filter by">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          <div class="history-header-top">
+            <div class="history-header-left">
+              <h2 class="card-title">History</h2>
+            </div>
+            <div class="history-search-wrap">
+              <div id="search-bar" class="search-bar">
+                <input type="text" id="search-input" class="search-input" placeholder="Search transactions…">
+                <div class="filter-wrap">
+                  <button type="button" id="filter-btn" class="filter-btn" title="Filter by">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                      stroke-linejoin="round">
+                      <line x1="4" y1="6" x2="20" y2="6" />
+                      <line x1="8" y1="12" x2="16" y2="12" />
+                      <line x1="11" y1="18" x2="13" y2="18" />
+                    </svg>
+                  </button>
+                  <div id="filter-dropdown" class="filter-dropdown">
+                    <span class="filter-label">Filter by</span>
+                    <!-- FIX 1: inputs are now siblings of labels, not children, so change events fire cleanly -->
+                    <label class="filter-option">
+                      <input type="radio" name="filter" value="name" checked> Name
+                    </label>
+                    <label class="filter-option">
+                      <input type="radio" name="filter" value="category"> Category
+                    </label>
+                    <label class="filter-option">
+                      <input type="radio" name="filter" value="date"> Date
+                    </label>
+                    <label class="filter-option">
+                      <input type="radio" name="filter" value="type"> Type (income/expense)
+                    </label>
+                    <label class="filter-option">
+                      <input type="radio" name="filter" value="amount"> Amount
+                    </label>
+                  </div>
+                </div>
+                <!-- FIX 3: close button inside the search bar -->
+                <button type="button" id="search-close" class="search-close" title="Close search" aria-label="Close search">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
                     stroke-linejoin="round">
-                    <line x1="4" y1="6" x2="20" y2="6" />
-                    <line x1="8" y1="12" x2="16" y2="12" />
-                    <line x1="11" y1="18" x2="13" y2="18" />
+                    <path d="M18 6L6 18M6 6l12 12" />
                   </svg>
                 </button>
-                <div id="filter-dropdown" class="filter-dropdown">
-                  <span class="filter-label">Filter by</span>
-                  <label class="filter-option"><input type="radio" name="filter" value="name" checked> Name</label>
-                  <label class="filter-option"><input type="radio" name="filter" value="category"> Category</label>
-                  <label class="filter-option"><input type="radio" name="filter" value="date"> Date</label>
-                  <label class="filter-option"><input type="radio" name="filter" value="type"> Type
-                    (income/expense)</label>
-                  <label class="filter-option"><input type="radio" name="filter" value="amount"> Amount</label>
-                </div>
               </div>
+              <button type="button" id="search-toggle" class="search-toggle" title="Search transactions">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                  stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+              </button>
             </div>
-            <button type="button" id="search-toggle" class="search-toggle" title="Search transactions">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <path d="M21 21l-4.35-4.35" />
-              </svg>
-            </button>
           </div>
+          <!-- FIX 2: subtitle is always on its own row, below both title and search -->
+          <p class="card-subtitle" id="history-subtitle">Hover a transaction to edit or delete it</p>
         </div>
         <ul id="list" class="list"></ul>
         <div id="empty-state" class="empty-state">

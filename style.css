@@ -203,7 +203,6 @@ body.light-theme .brand-icon {
     overflow: hidden;
     border-radius: var(--radius-lg);
     padding: 32px;
-    /* background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 55%, #4c1d95 100%); */
     background: linear-gradient(
     180deg,
     #202024 0%,
@@ -787,7 +786,6 @@ select.invalid {
 
 .btn {
     cursor: pointer;
-    /* background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary)); */
     background:#26262b;
     box-shadow: var(--shadow-sm);
     color: white;
@@ -853,8 +851,6 @@ body.light-theme .btn:focus {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    /* max-height: 420px;
-    overflow-y: auto; */
 }
 
 .empty-state {
@@ -999,7 +995,6 @@ body.light-theme .list li:hover {
 }
 
 .edit-btn {
-    /* background-color: #4a90d9; */
     background:#303036;
 }
 
@@ -1030,8 +1025,6 @@ body.light-theme .list li:hover {
         padding: 22px;
     }
 }
-
-
 
 
 .header-actions{
@@ -1210,7 +1203,7 @@ body.light-theme .guide-tip {
     justify-content: center;
     gap: 6px;
     padding-top: 16px;
-    margin-top: auto;         /* pushes to bottom of the card */
+    margin-top: auto;
     border-top: 1px solid var(--color-border);
     flex-wrap: wrap;
 }
@@ -1254,28 +1247,38 @@ body.light-theme .guide-tip {
 }
 
 
-
-
-
-/* Search Bar */
-/* ---------- History header ---------- */
+/* =============================================
+   FIX 2 — History header: two-row layout
+   Top row: title + search controls (always flex)
+   Bottom row: subtitle (always full-width below)
+   ============================================= */
 
 .history-header {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
+    flex-direction: column;        /* stack both rows vertically */
+    gap: 0;
     margin-bottom: 4px;
 }
 
-.history-header-left .card-title,
-.history-header-left .card-subtitle {
+/* Row 1: title on left, search on right */
+.history-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: nowrap;
+}
+
+.history-header-left .card-title {
     margin-bottom: 0;
 }
 
-.history-header-left .card-subtitle {
-    margin-top: 4px;
-    margin-bottom: 18px;
+/* Row 2: subtitle always below, never squeezed */
+.card-subtitle {
+    margin: 4px 0 18px;
+    font-size: 13px;
+    color: var(--color-text-faint);
+    white-space: normal;          /* allow wrapping if needed, but won't get squeezed */
 }
 
 .history-search-wrap {
@@ -1283,11 +1286,9 @@ body.light-theme .guide-tip {
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
-    margin-top: 2px;
 }
 
 /* Search toggle icon button */
-
 .search-toggle {
     width: 34px;
     height: 34px;
@@ -1315,7 +1316,6 @@ body.light-theme .guide-tip {
 }
 
 /* Expanding search bar */
-
 .search-bar {
     display: flex;
     align-items: center;
@@ -1327,7 +1327,7 @@ body.light-theme .guide-tip {
 }
 
 .search-bar.is-open {
-    width: 260px;
+    width: 290px;   /* slightly wider to accommodate the close button */
     opacity: 1;
 }
 
@@ -1343,7 +1343,6 @@ body.light-theme .guide-tip {
     color: var(--color-text);
     font-family: var(--font-body);
     width: 100%;
-    /* override the global input display:block */
     display: block;
 }
 
@@ -1354,7 +1353,6 @@ body.light-theme .guide-tip {
 }
 
 /* Filter button */
-
 .filter-wrap {
     position: relative;
     flex-shrink: 0;
@@ -1364,7 +1362,8 @@ body.light-theme .guide-tip {
     width: 34px;
     height: 34px;
     border: 1px solid var(--color-border);
-    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    border-right: none;           /* no double border between filter and close */
+    border-radius: 0;
     background: var(--color-surface-muted);
     color: var(--color-text-muted);
     cursor: pointer;
@@ -1386,7 +1385,6 @@ body.light-theme .guide-tip {
 }
 
 /* Filter dropdown */
-
 .filter-dropdown {
     position: absolute;
     top: calc(100% + 8px);
@@ -1415,6 +1413,7 @@ body.light-theme .guide-tip {
     color: var(--color-text-faint);
 }
 
+/* FIX 1 — filter options: prevent global label/input rules from breaking radio layout */
 .filter-option {
     display: flex;
     align-items: center;
@@ -1426,25 +1425,62 @@ body.light-theme .guide-tip {
     cursor: pointer;
     transition: background 0.15s ease;
     margin: 0;
+    /* Override global label styles */
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text);
 }
 
 .filter-option:hover {
     background: var(--color-surface-muted);
 }
 
+/* FIX 1 — radio inputs inside filter must NOT inherit block/full-width global rules */
 .filter-option input[type="radio"] {
-    width: 14px;
-    height: 14px;
-    margin: 0;
-    padding: 0;
-    display: inline;
-    border: 1px solid var(--color-border);
+    /* Reset global input styles */
+    display: inline-flex !important;
+    width: 14px !important;
+    height: 14px !important;
+    min-width: 14px;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 1px solid var(--color-border) !important;
+    border-radius: 50% !important;
+    background: transparent !important;
+    box-shadow: none !important;
     accent-color: var(--color-text);
     flex-shrink: 0;
+    cursor: pointer;
+}
+
+/* FIX 3 — close (×) button at the right end of the search bar */
+.search-close {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border: 1px solid var(--color-border);
+    border-left: none;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background: var(--color-surface-muted);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.search-close svg {
+    width: 14px;
+    height: 14px;
+}
+
+.search-close:hover {
+    background: var(--color-border);
+    color: var(--color-expense);
 }
 
 /* No-results state */
-
 .no-results {
     text-align: center;
     padding: 40px 20px;
