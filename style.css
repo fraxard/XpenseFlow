@@ -1322,6 +1322,7 @@ body.light-theme .guide-tip {
     gap: 0;
     width: 0;
     overflow: hidden;
+    pointer-events: none;    /* block all clicks when closed */
     opacity: 0;
     transition: width 0.3s ease, opacity 0.25s ease;
 }
@@ -1329,6 +1330,8 @@ body.light-theme .guide-tip {
 .search-bar.is-open {
     width: 290px;   /* slightly wider to accommodate the close button */
     opacity: 1;
+    pointer-events: auto;     /* allow clicks when open */
+    overflow: visible;   /* ← only let content escape when open */
 }
 
 .search-input {
@@ -1362,6 +1365,7 @@ body.light-theme .guide-tip {
     width: 34px;
     height: 34px;
     border: 1px solid var(--color-border);
+    border-left: none;            /* no double border between search and filter */
     border-right: none;           /* no double border between filter and close */
     border-radius: 0;
     background: var(--color-surface-muted);
