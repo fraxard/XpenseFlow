@@ -38,21 +38,15 @@
           </select>
         </div>
         <button id="theme-toggle" class="theme-toggle" aria-label="Toggle Theme">
-
           <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="5" />
-            <path
-              d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
           </svg>
-
           <svg class="moon-icon" viewBox="0 0 24 24" fill="currentColor">
             <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
           </svg>
-
         </button>
       </div>
-
-
     </header>
 
     <main class="dashboard">
@@ -61,7 +55,22 @@
         <span class="hero-blob blob-1"></span>
         <span class="hero-blob blob-2"></span>
         <div class="hero-content">
-          <span class="hero-label">Your Balance</span>
+
+          <!-- Top row: label + Full Report button -->
+          <div class="hero-top-row">
+            <span class="hero-label">Your Balance</span>
+            <button id="full-report-btn" class="full-report-btn" onclick="window.location.href='reports.html'">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+              Full Report
+            </button>
+          </div>
+
           <h1 id="balance" class="hero-balance">$0.00</h1>
 
           <div class="hero-stats">
@@ -100,7 +109,6 @@
 
       <section class="card form-card">
         <h2 class="card-title">Add transaction</h2>
-
 
         <div id="guide-tip" class="guide-tip">
           👋 Start by adding your first transaction.
@@ -177,10 +185,8 @@
 
           <div class="form-control">
             <label for="receipt">Receipt <span class="optional-tag">(optional)</span></label>
-
             <div class="receipt-field">
               <input type="file" id="receipt" class="receipt-input" accept="image/*">
-
               <label for="receipt" id="receipt-dropzone" class="receipt-dropzone">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
                   stroke-linejoin="round">
@@ -190,10 +196,8 @@
                 </svg>
                 <span>Click to attach a photo</span>
               </label>
-
               <div id="receipt-preview" class="receipt-preview"></div>
             </div>
-
             <span class="error-message" id="receipt-error"></span>
           </div>
 
@@ -203,7 +207,6 @@
       </section>
 
       <section class="card history-card">
-        <!-- FIX 2: history-header now stacks into two rows when search is open -->
         <div class="history-header">
           <div class="history-header-top">
             <div class="history-header-left">
@@ -223,7 +226,6 @@
                   </button>
                   <div id="filter-dropdown" class="filter-dropdown">
                     <span class="filter-label">Filter by</span>
-                    <!-- FIX 1: inputs are now siblings of labels, not children, so change events fire cleanly -->
                     <label class="filter-option">
                       <input type="radio" name="filter" value="name" checked> Name
                     </label>
@@ -241,7 +243,6 @@
                     </label>
                   </div>
                 </div>
-                <!-- FIX 3: close button inside the search bar -->
                 <button type="button" id="search-close" class="search-close" title="Close search" aria-label="Close search">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
                     stroke-linejoin="round">
@@ -258,7 +259,6 @@
               </button>
             </div>
           </div>
-          <!-- FIX 2: subtitle is always on its own row, below both title and search -->
           <p class="card-subtitle" id="history-subtitle">Hover a transaction to edit or delete it</p>
         </div>
         <ul id="list" class="list"></ul>
@@ -271,7 +271,7 @@
 
     </main>
 
-    <footer class="app-footer">by fraxard, v0.5</footer>
+    <footer class="app-footer">by fraxard, v0.6</footer>
   </div>
 
   <div id="welcome-modal" class="modal">

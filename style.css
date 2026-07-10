@@ -1497,3 +1497,37 @@ body.light-theme .guide-tip {
 .no-results.is-visible {
     display: block;
 }
+
+
+
+
+
+/* =============================================
+   Full Report button — hero card top row
+   ============================================= */
+.hero-top-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+ 
+.full-report-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: var(--radius-sm);
+    background: rgba(255,255,255,0.07);
+    color: rgba(255,255,255,0.82);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.full-report-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+.full-report-btn:hover { background: rgba(255,255,255,0.13); border-color: rgba(255,255,255,0.28); color: #ffffff; transform: translateY(-1px); }
+.full-report-btn:active { transform: translateY(0); }
+body.light-theme .full-report-btn { border-color: rgba(17,24,39,0.18); background: rgba(17,24,39,0.06); color: rgba(17,24,39,0.75); }
+body.light-theme .full-report-btn:hover { background: rgba(17,24,39,0.11); border-color: rgba(17,24,39,0.3); color: #111827; }

@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <title>Full Report — XpenseFlow</title>
+  <style>
+    /* ── Reports-page-only styles ── */
+
+    .reports-page {
+      width: 100%;
+      max-width: 900px;
+    }
+
+    /* Back button in header */
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 14px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-surface-muted);
+      color: var(--color-text-muted);
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+    .back-btn svg { width: 14px; height: 14px; }
+    .back-btn:hover { background: var(--color-border); color: var(--color-text); }
+
+    /* Page title row */
+    .report-title-row {
+      margin-bottom: 24px;
+    }
+    .report-title-row h1 {
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      margin: 0 0 4px;
+    }
+    .report-title-row p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--color-text-faint);
+    }
+
+    /* Summary strip — 4 stat tiles */
+    .summary-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 600px) {
+      .summary-strip { grid-template-columns: 1fr 1fr; }
+    }
+
+    .stat-tile {
+      background: var(--color-surface-muted);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .stat-tile-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--color-text-faint);
+    }
+    .stat-tile-value {
+      font-family: var(--font-mono);
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--color-text);
+    }
+    .stat-tile-value.income { color: var(--color-income); }
+    .stat-tile-value.expense { color: var(--color-expense); }
+    .stat-tile-sub {
+      font-size: 12px;
+      color: var(--color-text-faint);
+    }
+
+    /* Reports grid — two cards side by side */
+    .reports-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 640px) {
+      .reports-grid { grid-template-columns: 1fr; }
+    }
+
+    .report-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+      padding: 24px;
+    }
+    body.light-theme .report-card { background: #f9fafb; border-color: #e5e7eb; }
+
+    .report-card-title {
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 700;
+      margin: 0 0 18px;
+      color: var(--color-text);
+    }
+
+    /* Coming-soon placeholder */
+    .chart-placeholder {
+      height: 200px;
+      border-radius: var(--radius-md);
+      border: 1.5px dashed var(--color-border);
+      background: var(--color-surface-muted);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--color-text-faint);
+    }
+    .chart-placeholder svg {
+      width: 32px;
+      height: 32px;
+      opacity: 0.4;
+    }
+    .chart-placeholder-label {
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .chart-placeholder-sub {
+      font-size: 11px;
+      opacity: 0.65;
+    }
+
+    /* Top categories list */
+    .category-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .category-row-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .category-row-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text);
+      min-width: 90px;
+      flex-shrink: 0;
+    }
+    .category-bar-wrap {
+      flex: 1;
+      height: 6px;
+      background: var(--color-border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .category-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: var(--color-expense);
+      transition: width 0.6s cubic-bezier(.4,0,.2,1);
+    }
+    .category-bar-fill.income-bar { background: var(--color-income); }
+    .category-row-amount {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      min-width: 70px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* Recent months table */
+    .months-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .months-table th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--color-text-faint);
+      padding: 0 0 10px;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .months-table th:not(:first-child) { text-align: right; }
+    .months-table td {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--color-border);
+      color: var(--color-text-muted);
+    }
+    .months-table tr:last-child td { border-bottom: none; }
+    .months-table td:not(:first-child) { text-align: right; font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+    .months-table td.pos { color: var(--color-income); }
+    .months-table td.neg { color: var(--color-expense); }
+    .months-table td.month-name { font-weight: 600; color: var(--color-text); font-family: var(--font-body); }
+
+    /* Full-width chart placeholder */
+    .report-card-wide {
+      grid-column: 1 / -1;
+    }
+
+    /* Empty state */
+    .report-empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--color-text-faint);
+    }
+    .report-empty svg { width: 40px; height: 40px; opacity: 0.3; margin-bottom: 12px; }
+    .report-empty p { margin: 0; font-size: 15px; font-weight: 500; }
+    .report-empty a { color: var(--color-text-muted); font-size: 13px; text-decoration: underline; cursor: pointer; }
+  </style>
+</head>
+
+<body>
+  <div class="reports-page">
+
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2h2a1 1 0 0 1 1 1v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+            <circle cx="16" cy="14" r="1.4" fill="currentColor" stroke="none" />
+          </svg>
+        </span>
+        <span class="brand-name">XpenseFlow</span>
+      </div>
+      <div class="header-actions">
+        <button class="back-btn" onclick="window.location.href='index.html'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+          </svg>
+          Back to Dashboard
+        </button>
+        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle Theme">
+          <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"/>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          </svg>
+          <svg class="moon-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <main id="report-main">
+      <!-- Filled by JS -->
+    </main>
+
+    <footer class="app-footer">by fraxard, v0.6</footer>
+  </div>
+
+  <script>
+    /* ── Theme (mirrors script.js logic, no dependency needed) ── */
+    function applyTheme(theme) {
+      document.body.classList.toggle('light-theme', theme === 'light');
+      document.body.classList.toggle('dark-theme', theme === 'dark');
+      localStorage.setItem('theme', theme);
+      const btn = document.getElementById('theme-toggle');
+      if (btn) {
+        btn.setAttribute('aria-pressed', String(theme === 'light'));
+        btn.title = theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+      }
+    }
+    applyTheme(localStorage.getItem('theme') || 'dark');
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      applyTheme(document.body.classList.contains('light-theme') ? 'dark' : 'light');
+    });
+
+    /* ── Data ── */
+    const transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+    const currency     = localStorage.getItem('currency') || 'USD';
+
+    function fmt(value) {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
+    }
+
+    /* ── Derived numbers ── */
+    const income  = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+    const expense = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+    const balance = income - expense;
+    const txCount = transactions.length;
+
+    /* ── Monthly breakdown (last 6 months) ── */
+    function monthKey(dateStr) {
+      if (!dateStr) return null;
+      const [y, m] = dateStr.split('-');
+      return `${y}-${m}`;
+    }
+    function monthLabel(key) {
+      const [y, m] = key.split('-').map(Number);
+      return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    }
+
+    const monthMap = {};
+    transactions.forEach(t => {
+      const k = monthKey(t.date);
+      if (!k) return;
+      if (!monthMap[k]) monthMap[k] = { income: 0, expense: 0 };
+      if (t.amount > 0) monthMap[k].income  += t.amount;
+      else              monthMap[k].expense += Math.abs(t.amount);
+    });
+    const sortedMonths = Object.keys(monthMap).sort().slice(-6).reverse();
+
+    /* ── Top expense categories ── */
+    const catMap = {};
+    transactions.filter(t => t.amount < 0).forEach(t => {
+      const c = t.category || 'Other';
+      catMap[c] = (catMap[c] || 0) + Math.abs(t.amount);
+    });
+    const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const maxCat  = topCats[0]?.[1] || 1;
+
+    /* ── Top income categories ── */
+    const incCatMap = {};
+    transactions.filter(t => t.amount > 0).forEach(t => {
+      const c = t.category || 'Other';
+      incCatMap[c] = (incCatMap[c] || 0) + t.amount;
+    });
+    const topIncCats = Object.entries(incCatMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const maxIncCat  = topIncCats[0]?.[1] || 1;
+
+    /* ── Savings rate ── */
+    const savingsRate = income > 0 ? Math.round(((income - expense) / income) * 100) : 0;
+
+    /* ── Render ── */
+    const main = document.getElementById('report-main');
+
+    if (txCount === 0) {
+      main.innerHTML = `
+        <div class="report-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 17H5a2 2 0 0 0-2 2v0a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v0a2 2 0 0 0-2-2h-4"/><rect x="9" y="3" width="6" height="14" rx="1"/></svg>
+          <p>No data to report yet.</p>
+          <br>
+          <a onclick="window.location.href='index.html'">Add some transactions first →</a>
+        </div>`;
+    } else {
+      main.innerHTML = `
+
+        <div class="report-title-row">
+          <h1>Full Report</h1>
+          <p>${txCount} transaction${txCount !== 1 ? 's' : ''} · ${fmt(income)} in, ${fmt(expense)} out</p>
+        </div>
+
+        <!-- Summary strip -->
+        <div class="summary-strip">
+          <div class="stat-tile">
+            <span class="stat-tile-label">Net Balance</span>
+            <span class="stat-tile-value ${balance >= 0 ? 'income' : 'expense'}">${fmt(balance)}</span>
+            <span class="stat-tile-sub">${balance >= 0 ? 'You\'re in the green' : 'Spending exceeds income'}</span>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-tile-label">Total Income</span>
+            <span class="stat-tile-value income">${fmt(income)}</span>
+            <span class="stat-tile-sub">${transactions.filter(t=>t.amount>0).length} transactions</span>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-tile-label">Total Expenses</span>
+            <span class="stat-tile-value expense">${fmt(expense)}</span>
+            <span class="stat-tile-sub">${transactions.filter(t=>t.amount<0).length} transactions</span>
+          </div>
+          <div class="stat-tile">
+            <span class="stat-tile-label">Savings Rate</span>
+            <span class="stat-tile-value ${savingsRate >= 0 ? 'income' : 'expense'}">${savingsRate}%</span>
+            <span class="stat-tile-sub">of income saved</span>
+          </div>
+        </div>
+
+        <!-- Charts + category rows -->
+        <div class="reports-grid">
+
+          <!-- Spending by category -->
+          <div class="report-card">
+            <p class="report-card-title">Top Expense Categories</p>
+            ${topCats.length === 0
+              ? `<div class="chart-placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg><span class="chart-placeholder-label">No expenses yet</span></div>`
+              : `<div class="category-rows">${topCats.map(([name, amt]) => `
+                <div class="category-row-item">
+                  <span class="category-row-name">${name}</span>
+                  <div class="category-bar-wrap">
+                    <div class="category-bar-fill" style="width:${Math.round((amt/maxCat)*100)}%"></div>
+                  </div>
+                  <span class="category-row-amount">${fmt(amt)}</span>
+                </div>`).join('')}
+              </div>`
+            }
+          </div>
+
+          <!-- Income by category -->
+          <div class="report-card">
+            <p class="report-card-title">Top Income Sources</p>
+            ${topIncCats.length === 0
+              ? `<div class="chart-placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg><span class="chart-placeholder-label">No income yet</span></div>`
+              : `<div class="category-rows">${topIncCats.map(([name, amt]) => `
+                <div class="category-row-item">
+                  <span class="category-row-name">${name}</span>
+                  <div class="category-bar-wrap">
+                    <div class="category-bar-fill income-bar" style="width:${Math.round((amt/maxIncCat)*100)}%"></div>
+                  </div>
+                  <span class="category-row-amount">${fmt(amt)}</span>
+                </div>`).join('')}
+              </div>`
+            }
+          </div>
+
+          <!-- Balance over time chart placeholder -->
+          <div class="report-card report-card-wide">
+            <p class="report-card-title">Balance Over Time</p>
+            <div class="chart-placeholder" style="height:180px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+              <span class="chart-placeholder-label">Chart coming in v0.7</span>
+              <span class="chart-placeholder-sub">Line chart will render here</span>
+            </div>
+          </div>
+
+          <!-- Spending vs income chart placeholder -->
+          <div class="report-card report-card-wide">
+            <p class="report-card-title">Income vs Expenses — Breakdown</p>
+            <div class="chart-placeholder" style="height:180px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M18 20V10M12 20V4M6 20v-6"/>
+              </svg>
+              <span class="chart-placeholder-label">Chart coming in v0.7</span>
+              <span class="chart-placeholder-sub">Bar chart will render here</span>
+            </div>
+          </div>
+
+          <!-- Monthly summary table -->
+          <div class="report-card report-card-wide">
+            <p class="report-card-title">Monthly Summary</p>
+            ${sortedMonths.length === 0
+              ? `<p style="color:var(--color-text-faint);font-size:13px">No dated transactions found.</p>`
+              : `<table class="months-table">
+                  <thead>
+                    <tr>
+                      <th>Month</th>
+                      <th>Income</th>
+                      <th>Expenses</th>
+                      <th>Net</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${sortedMonths.map(k => {
+                      const { income: mi, expense: me } = monthMap[k];
+                      const net = mi - me;
+                      return `<tr>
+                        <td class="month-name">${monthLabel(k)}</td>
+                        <td class="pos">${fmt(mi)}</td>
+                        <td class="neg">${fmt(me)}</td>
+                        <td class="${net >= 0 ? 'pos' : 'neg'}">${fmt(net)}</td>
+                      </tr>`;
+                    }).join('')}
+                  </tbody>
+                </table>`
+            }
+          </div>
+
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
