@@ -1531,3 +1531,379 @@ body.light-theme .guide-tip {
 .full-report-btn:active { transform: translateY(0); }
 body.light-theme .full-report-btn { border-color: rgba(17,24,39,0.18); background: rgba(17,24,39,0.06); color: rgba(17,24,39,0.75); }
 body.light-theme .full-report-btn:hover { background: rgba(17,24,39,0.11); border-color: rgba(17,24,39,0.3); color: #111827; }
+
+
+
+/* ══════════════════════════════════════════
+   LAYOUT — 3-column second row
+   ══════════════════════════════════════════ */
+
+/* Hero spans full width, form + recurring side by side,
+   budgets + history side by side below */
+@media (min-width: 760px) {
+  .dashboard {
+    grid-template-columns: 1fr 1fr;
+  }
+  .hero-card {
+    grid-column: 1 / -1;
+  }
+  /* form card + recurring card: side by side (row 2) */
+  .form-card {
+    grid-column: 1 / 2;
+  }
+  .recurring-card {
+    grid-column: 2 / 3;
+  }
+  /* budgets + history: side by side (row 3) */
+  .budgets-card {
+    grid-column: 1 / 2;
+  }
+  .history-card {
+    grid-column: 2 / 3;
+  }
+}
+
+/* ══════════════════════════════════════════
+   RECURRING TRANSACTIONS CARD
+   ══════════════════════════════════════════ */
+
+.recurring-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.recurring-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.btn-icon-sm {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.btn-icon-sm:hover {
+  background: var(--color-border);
+  color: var(--color-text);
+}
+
+.recurring-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.recurring-empty {
+  display: none;
+  text-align: center;
+  padding: 36px 20px;
+  color: var(--color-text-faint);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.recurring-empty.is-visible {
+  display: block;
+}
+
+.recurring-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  transition: border-color 0.15s ease;
+}
+
+.recurring-item:hover {
+  border-color: #45454d;
+}
+
+body.light-theme .recurring-item:hover {
+  border-color: #d0d5dd;
+}
+
+.recurring-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.recurring-avatar svg {
+  width: 16px;
+  height: 16px;
+}
+
+.recurring-item.r-income .recurring-avatar {
+  background: var(--color-income-bg);
+  color: var(--color-income);
+}
+
+.recurring-item.r-expense .recurring-avatar {
+  background: var(--color-expense-bg);
+  color: var(--color-expense);
+}
+
+.recurring-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.recurring-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recurring-meta {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  margin-top: 2px;
+}
+
+.recurring-amount {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.recurring-item.r-income .recurring-amount { color: var(--color-income); }
+.recurring-item.r-expense .recurring-amount { color: var(--color-expense); }
+
+.recurring-delete-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.recurring-item:hover .recurring-delete-btn {
+  opacity: 1;
+}
+
+.recurring-delete-btn:hover {
+  background: var(--color-expense-bg);
+  color: var(--color-expense);
+}
+
+.recurring-delete-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ── Add Recurring modal ── */
+
+.recurring-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 900;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.recurring-modal-overlay.is-open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.recurring-modal {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  width: 90%;
+  max-width: 420px;
+  box-shadow: var(--shadow-hero);
+  animation: slideUp 0.25s ease;
+}
+
+.recurring-modal h3 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 20px;
+}
+
+.recurring-modal .form-control {
+  margin-bottom: 14px;
+}
+
+.recurring-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.recurring-modal-actions .btn {
+  flex: 1;
+  margin: 0;
+}
+
+.btn-ghost {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  box-shadow: none;
+}
+
+.btn-ghost:hover {
+  background: var(--color-border);
+  color: var(--color-text);
+}
+
+/* ══════════════════════════════════════════
+   BUDGETS PLACEHOLDER CARD
+   ══════════════════════════════════════════ */
+
+.budgets-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.budget-coming-soon {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 20px;
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-faint);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.budget-coming-soon svg {
+  width: 36px;
+  height: 36px;
+  opacity: 0.35;
+}
+
+
+.recurring-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.rec-type-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.rec-badge-income {
+  background: var(--color-income-bg);
+  color: var(--color-income);
+}
+
+.rec-badge-expense {
+  background: var(--color-expense-bg);
+  color: var(--color-expense);
+}
+
+/* ── Edit + delete action buttons (side by side, appear on hover) ── */
+.recurring-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
+}
+
+.recurring-item:hover .recurring-actions {
+  opacity: 1;
+}
+
+.recurring-action-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.recurring-action-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.recurring-edit-btn:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.recurring-delete-btn:hover {
+  background: var(--color-expense-bg);
+  color: var(--color-expense);
+}
+/* ── Recurring modal type toggle: checked states ── */
+#rec-type-expense:checked ~ .expense-btn {
+  background-color: var(--color-expense-bg);
+  color: var(--color-expense);
+}
+
+#rec-type-income:checked ~ .income-btn {
+  background-color: var(--color-income-bg);
+  color: var(--color-income);
+}

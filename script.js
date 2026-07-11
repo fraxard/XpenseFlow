@@ -694,3 +694,349 @@ document.addEventListener('click', (e) => {
 searchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeSearchBar();
 });
+
+
+
+
+/* ═══════════════════════════════════════════════════════
+   RECURRING TRANSACTIONS v2
+   Append this entire block to the bottom of script.js
+   (replaces the previous recurring block entirely)
+   ═══════════════════════════════════════════════════════ */
+
+const FREQ_LABELS = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
+
+/* ── Storage helpers ── */
+function getTemplates() {
+  return JSON.parse(localStorage.getItem('recurringTemplates')) || [];
+}
+function saveTemplates(t) {
+  localStorage.setItem('recurringTemplates', JSON.stringify(t));
+}
+
+/* ── Timezone-safe date key ── */
+function localDateKey(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/* ── Auto-insert overdue recurring entries on page load ── */
+function processRecurring() {
+  const templates = getTemplates();
+  if (templates.length === 0) return;
+  const todayKey = localDateKey();
+  let changed = false;
+
+  templates.forEach(tpl => {
+    const [y, m, d] = tpl.nextDate.split('-').map(Number);
+    let cursor = new Date(y, m - 1, d);
+
+    while (localDateKey(cursor) <= todayKey) {
+      const cursorKey = localDateKey(cursor);
+      const alreadyExists = transactions.some(
+        t => t.recurringId === tpl.id && t.date === cursorKey
+      );
+      if (!alreadyExists) {
+        transactions.push({
+          id: generateID(),
+          text: tpl.name,
+          amount: tpl.type === 'income' ? tpl.amount : -tpl.amount,
+          category: tpl.category,
+          date: cursorKey,
+          receipt: null,
+          recurringId: tpl.id
+        });
+        changed = true;
+      }
+      const next = new Date(cursor);
+      if (tpl.frequency === 'daily')        next.setDate(next.getDate() + 1);
+      else if (tpl.frequency === 'weekly')  next.setDate(next.getDate() + 7);
+      else if (tpl.frequency === 'monthly') next.setMonth(next.getMonth() + 1);
+      cursor = next;
+    }
+    tpl.nextDate = localDateKey(cursor);
+  });
+
+  saveTemplates(templates);
+  if (changed) { updateLocalStorage(); init(); }
+}
+
+/* ── Render the recurring list card ── */
+function renderRecurringList() {
+  const listEl  = document.getElementById('recurring-list');
+  const emptyEl = document.getElementById('recurring-empty');
+  if (!listEl) return;
+
+  const templates = getTemplates();
+  listEl.innerHTML = '';
+
+  if (templates.length === 0) {
+    emptyEl.classList.add('is-visible');
+    return;
+  }
+  emptyEl.classList.remove('is-visible');
+
+  templates.forEach(tpl => {
+    const isIncome = tpl.type === 'income';
+    const sign     = isIncome ? '+' : '-';
+    const cls      = isIncome ? 'r-income' : 'r-expense';
+    const typeLabel = isIncome ? 'Income' : 'Expense';
+    const typeCls   = isIncome ? 'rec-badge-income' : 'rec-badge-expense';
+
+    const li = document.createElement('li');
+    li.className = `recurring-item ${cls}`;
+    li.dataset.id = tpl.id;
+    li.innerHTML = `
+      <span class="recurring-avatar">${icon(tpl.category)}</span>
+      <div class="recurring-info">
+        <span class="recurring-name">${tpl.name}</span>
+        <div class="recurring-meta-row">
+          <span class="rec-type-badge ${typeCls}">${typeLabel}</span>
+          <span class="recurring-meta">${FREQ_LABELS[tpl.frequency]} · next ${formatDate(tpl.nextDate)}</span>
+        </div>
+      </div>
+      <span class="recurring-amount">${sign}${formatCurrency(tpl.amount)}</span>
+      <div class="recurring-actions">
+        <button class="recurring-action-btn recurring-edit-btn" title="Edit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
+          </svg>
+        </button>
+        <button class="recurring-action-btn recurring-delete-btn" title="Remove">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+    `;
+    listEl.appendChild(li);
+  });
+
+  /* Delegated click handler for edit + delete */
+  listEl.addEventListener('click', e => {
+    const item = e.target.closest('.recurring-item');
+    if (!item) return;
+    const id = +item.dataset.id;
+
+    if (e.target.closest('.recurring-delete-btn')) {
+      const updated = getTemplates().filter(t => t.id !== id);
+      saveTemplates(updated);
+      renderRecurringList();
+    } else if (e.target.closest('.recurring-edit-btn')) {
+      openRecurringModal(id);
+    }
+  });
+}
+
+/* ── Build & inject the modal (once) ── */
+function buildRecurringModal() {
+  if (document.getElementById('recurring-modal-overlay')) return;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'recurring-modal-overlay';
+  overlay.className = 'recurring-modal-overlay';
+  overlay.innerHTML = `
+    <div class="recurring-modal" role="dialog" aria-modal="true" aria-labelledby="rec-modal-title">
+      <h3 id="rec-modal-title">Add Recurring Transaction</h3>
+
+      <div class="form-control">
+        <label for="rec-name">Name</label>
+        <input type="text" id="rec-name" placeholder="e.g. Netflix, Rent, Salary" maxlength="40">
+        <span class="error-message" id="rec-name-error"></span>
+      </div>
+
+      <div class="form-control">
+        <label>Type</label>
+        <div class="type-toggle" role="radiogroup">
+          <input type="radio" id="rec-type-expense" name="rec-type" value="expense" checked>
+          <label for="rec-type-expense" class="type-btn expense-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg>
+            Expense
+          </label>
+          <input type="radio" id="rec-type-income" name="rec-type" value="income">
+          <label for="rec-type-income" class="type-btn income-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+            Income
+          </label>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-control">
+          <label for="rec-amount">Amount</label>
+          <input type="number" id="rec-amount" placeholder="0.00" min="0" step="0.01">
+          <span class="error-message" id="rec-amount-error"></span>
+        </div>
+        <div class="form-control">
+          <label for="rec-frequency">Frequency</label>
+          <select id="rec-frequency">
+            <option value="monthly">Monthly</option>
+            <option value="weekly">Weekly</option>
+            <option value="daily">Daily</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-control">
+          <label for="rec-category">Category</label>
+          <select id="rec-category"></select>
+        </div>
+        <div class="form-control">
+          <label for="rec-start">Next date</label>
+          <input type="date" id="rec-start">
+          <span class="error-message" id="rec-start-error"></span>
+        </div>
+      </div>
+
+      <div class="recurring-modal-actions">
+        <button class="btn btn-ghost" id="rec-cancel-btn">Cancel</button>
+        <button class="btn" id="rec-save-btn">Add Recurring</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  function syncRecCats() {
+    const type = document.querySelector('input[name="rec-type"]:checked').value;
+    const sel  = document.getElementById('rec-category');
+    sel.innerHTML = '';
+    [...(categoryOptions[type] || []), ...(customCategories[type] || [])].forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      sel.appendChild(opt);
+    });
+  }
+
+  overlay.querySelectorAll('input[name="rec-type"]').forEach(r => r.addEventListener('change', syncRecCats));
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeRecurringModal(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && overlay.classList.contains('is-open')) closeRecurringModal();
+  });
+  document.getElementById('rec-cancel-btn').addEventListener('click', closeRecurringModal);
+
+  document.getElementById('rec-save-btn').addEventListener('click', () => {
+    const nameEl  = document.getElementById('rec-name');
+    const amtEl   = document.getElementById('rec-amount');
+    const startEl = document.getElementById('rec-start');
+    const errName  = document.getElementById('rec-name-error');
+    const errAmt   = document.getElementById('rec-amount-error');
+    const errStart = document.getElementById('rec-start-error');
+    let valid = true;
+
+    const clearE = (el, eEl) => { el.classList.remove('invalid'); eEl.textContent = ''; };
+    const showE  = (el, eEl, msg) => { el.classList.add('invalid'); eEl.textContent = msg; valid = false; };
+
+    if (!nameEl.value.trim()) showE(nameEl, errName, 'Enter a name');
+    else clearE(nameEl, errName);
+
+    const amt = parseFloat(amtEl.value);
+    if (!amtEl.value || isNaN(amt) || amt <= 0) showE(amtEl, errAmt, 'Enter an amount > 0');
+    else clearE(amtEl, errAmt);
+
+    if (!startEl.value) showE(startEl, errStart, 'Pick a date');
+    else clearE(startEl, errStart);
+
+    if (!valid) return;
+
+    const type     = document.querySelector('input[name="rec-type"]:checked').value;
+    const editingRecId = +overlay.dataset.editingId || null;
+
+    const tpl = {
+      id:        editingRecId || generateID(),
+      name:      nameEl.value.trim(),
+      type,
+      amount:    amt,
+      frequency: document.getElementById('rec-frequency').value,
+      category:  document.getElementById('rec-category').value,
+      nextDate:  startEl.value
+    };
+
+    let templates = getTemplates();
+    if (editingRecId) {
+      templates = templates.map(t => t.id === editingRecId ? tpl : t);
+    } else {
+      templates.push(tpl);
+    }
+    saveTemplates(templates);
+
+    closeRecurringModal();
+    processRecurring();
+    renderRecurringList();
+  });
+}
+
+/* ── Open modal, optionally pre-filled for editing ── */
+function openRecurringModal(editId = null) {
+  buildRecurringModal();
+  const overlay  = document.getElementById('recurring-modal-overlay');
+  const titleEl  = document.getElementById('rec-modal-title');
+  const saveBtn  = document.getElementById('rec-save-btn');
+
+  /* Reset form */
+  document.getElementById('rec-name').value = '';
+  document.getElementById('rec-name').classList.remove('invalid');
+  document.getElementById('rec-name-error').textContent = '';
+  document.getElementById('rec-amount').value = '';
+  document.getElementById('rec-amount').classList.remove('invalid');
+  document.getElementById('rec-amount-error').textContent = '';
+  document.getElementById('rec-start').value = localDateKey();
+  document.getElementById('rec-start').classList.remove('invalid');
+  document.getElementById('rec-start-error').textContent = '';
+  document.getElementById('rec-type-expense').checked = true;
+  document.getElementById('rec-frequency').value = 'monthly';
+
+  /* Sync cats after resetting type */
+  const type = 'expense';
+  const sel = document.getElementById('rec-category');
+  sel.innerHTML = '';
+  [...(categoryOptions[type] || []), ...(customCategories[type] || [])].forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
+  });
+
+  if (editId) {
+    const tpl = getTemplates().find(t => t.id === editId);
+    if (tpl) {
+      titleEl.textContent = 'Edit Recurring Transaction';
+      saveBtn.textContent = 'Save Changes';
+      overlay.dataset.editingId = editId;
+
+      document.getElementById('rec-name').value = tpl.name;
+      document.getElementById('rec-amount').value = tpl.amount;
+      document.getElementById('rec-frequency').value = tpl.frequency;
+      document.getElementById('rec-start').value = tpl.nextDate;
+
+      const typeRadio = document.getElementById(tpl.type === 'income' ? 'rec-type-income' : 'rec-type-expense');
+      typeRadio.checked = true;
+
+      /* Re-populate categories for the correct type, then select the saved one */
+      const catSel = document.getElementById('rec-category');
+      catSel.innerHTML = '';
+      [...(categoryOptions[tpl.type] || []), ...(customCategories[tpl.type] || [])].forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c; opt.textContent = c;
+        if (c === tpl.category) opt.selected = true;
+        catSel.appendChild(opt);
+      });
+    }
+  } else {
+    titleEl.textContent = 'Add Recurring Transaction';
+    saveBtn.textContent = 'Add Recurring';
+    delete overlay.dataset.editingId;
+  }
+
+  overlay.classList.add('is-open');
+  setTimeout(() => document.getElementById('rec-name')?.focus(), 50);
+}
+
+function closeRecurringModal() {
+  document.getElementById('recurring-modal-overlay')?.classList.remove('is-open');
+}
+
+/* ── Wire the + button ── */
+document.getElementById('add-recurring-btn')?.addEventListener('click', () => openRecurringModal());
+
+/* ── Run on page load ── */
+processRecurring();
+renderRecurringList();
