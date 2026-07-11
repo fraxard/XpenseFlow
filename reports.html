@@ -44,6 +44,9 @@
       </div>
     </header>
 
+    <!-- Filter bar injected here by JS -->
+    <div id="filter-bar-root"></div>
+
     <main id="report-main">
       <!-- Filled by JS -->
     </main>
@@ -52,7 +55,9 @@
   </div>
 
   <script>
-    /* ── Theme (mirrors script.js logic, no dependency needed) ── */
+    /* ═══════════════════════════════════════════
+       THEME
+    ═══════════════════════════════════════════ */
     function applyTheme(theme) {
       document.body.classList.toggle('light-theme', theme === 'light');
       document.body.classList.toggle('dark-theme', theme === 'dark');
@@ -68,101 +73,293 @@
       applyTheme(document.body.classList.contains('light-theme') ? 'dark' : 'light');
     });
 
-    /* ── Data ── */
-    const transactions = JSON.parse(localStorage.getItem('transactions')) || [];
-    const currency     = localStorage.getItem('currency') || 'USD';
+    /* ═══════════════════════════════════════════
+       DATA & CURRENCY
+    ═══════════════════════════════════════════ */
+    const allTransactions = JSON.parse(localStorage.getItem('transactions')) || [];
+    const currency = localStorage.getItem('currency') || 'USD';
 
     function fmt(value) {
       return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
     }
 
-    /* ── Derived numbers ── */
-    const income  = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
-    const expense = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
-    const balance = income - expense;
-    const txCount = transactions.length;
+    /* ═══════════════════════════════════════════
+       PERIOD STATE
+       period: 'day' | 'week' | 'month' | 'year'
+       offset: integer (0 = current, -1 = previous, +1 = next)
+    ═══════════════════════════════════════════ */
+    let period = 'month';
+    let offset = 0;
 
-    /* ── Monthly breakdown (last 6 months) ── */
-    function monthKey(dateStr) {
-      if (!dateStr) return null;
-      const [y, m] = dateStr.split('-');
-      return `${y}-${m}`;
+    const TODAY = new Date();
+    TODAY.setHours(0, 0, 0, 0);
+
+    /* ── Date helpers ── */
+    function startOfWeek(d) {
+      // Monday-based week
+      const day = d.getDay(); // 0=Sun
+      const diff = (day === 0) ? -6 : 1 - day;
+      const s = new Date(d);
+      s.setDate(d.getDate() + diff);
+      s.setHours(0, 0, 0, 0);
+      return s;
     }
-    function monthLabel(key) {
-      const [y, m] = key.split('-').map(Number);
-      return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+
+    function endOfDay(d) {
+      const e = new Date(d);
+      e.setHours(23, 59, 59, 999);
+      return e;
     }
 
-    const monthMap = {};
-    transactions.forEach(t => {
-      const k = monthKey(t.date);
-      if (!k) return;
-      if (!monthMap[k]) monthMap[k] = { income: 0, expense: 0 };
-      if (t.amount > 0) monthMap[k].income  += t.amount;
-      else              monthMap[k].expense += Math.abs(t.amount);
-    });
-    const sortedMonths = Object.keys(monthMap).sort().slice(-6).reverse();
+    /* Returns { start: Date, end: Date } for the current period+offset */
+    function getPeriodRange() {
+      const now = new Date(TODAY);
 
-    /* ── Top expense categories ── */
-    const catMap = {};
-    transactions.filter(t => t.amount < 0).forEach(t => {
-      const c = t.category || 'Other';
-      catMap[c] = (catMap[c] || 0) + Math.abs(t.amount);
-    });
-    const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
-    const maxCat  = topCats[0]?.[1] || 1;
+      if (period === 'day') {
+        const d = new Date(now);
+        d.setDate(d.getDate() + offset);
+        return { start: d, end: endOfDay(d) };
+      }
 
-    /* ── Top income categories ── */
-    const incCatMap = {};
-    transactions.filter(t => t.amount > 0).forEach(t => {
-      const c = t.category || 'Other';
-      incCatMap[c] = (incCatMap[c] || 0) + t.amount;
-    });
-    const topIncCats = Object.entries(incCatMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
-    const maxIncCat  = topIncCats[0]?.[1] || 1;
+      if (period === 'week') {
+        const monday = startOfWeek(now);
+        monday.setDate(monday.getDate() + offset * 7);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        sunday.setHours(23, 59, 59, 999);
+        return { start: monday, end: sunday };
+      }
 
-    /* ── Savings rate ── */
-    const savingsRate = income > 0 ? Math.round(((income - expense) / income) * 100) : 0;
+      if (period === 'month') {
+        const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+        const start = new Date(d.getFullYear(), d.getMonth(), 1);
+        const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        end.setHours(23, 59, 59, 999);
+        return { start, end };
+      }
 
-    /* ── Render ── */
-    const main = document.getElementById('report-main');
+      if (period === 'year') {
+        const y = now.getFullYear() + offset;
+        return {
+          start: new Date(y, 0, 1),
+          end: new Date(y, 11, 31, 23, 59, 59, 999)
+        };
+      }
+    }
 
-    if (txCount === 0) {
+    /* ── Human-readable period label ── */
+    function getPeriodLabel() {
+      const { start, end } = getPeriodRange();
+      const now = new Date(TODAY);
+
+      if (period === 'day') {
+        const diffDays = Math.round((start - now) / 86400000);
+        if (diffDays === 0) return 'Today';
+        if (diffDays === -1) return 'Yesterday';
+        if (diffDays === 1) return 'Tomorrow';
+        return start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      }
+
+      if (period === 'week') {
+        const thisMonday = startOfWeek(now);
+        if (start.getTime() === thisMonday.getTime()) return 'This week';
+        if (start.getTime() === new Date(thisMonday.getTime() - 7 * 86400000).getTime()) return 'Last week';
+        const opts = { month: 'short', day: 'numeric' };
+        return `${start.toLocaleDateString(undefined, opts)} – ${end.toLocaleDateString(undefined, opts)}`;
+      }
+
+      if (period === 'month') {
+        if (offset === 0) return 'This month';
+        if (offset === -1) return 'Last month';
+        return start.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+      }
+
+      if (period === 'year') {
+        if (offset === 0) return 'This year';
+        if (offset === -1) return 'Last year';
+        return String(start.getFullYear());
+      }
+    }
+
+    /* ── Short label used in the jump button ── */
+    function getJumpLabel() {
+      if (period === 'day')   return 'Today';
+      if (period === 'week')  return 'This week';
+      if (period === 'month') return 'This month';
+      if (period === 'year')  return 'This year';
+    }
+
+    /* ── Filter transactions to the selected period ── */
+    function filterByPeriod(txns) {
+      const { start, end } = getPeriodRange();
+      return txns.filter(t => {
+        if (!t.date) return false;
+        const [y, m, d] = t.date.split('-').map(Number);
+        const txDate = new Date(y, m - 1, d);
+        return txDate >= start && txDate <= end;
+      });
+    }
+
+    /* ═══════════════════════════════════════════
+       RENDER FILTER BAR
+    ═══════════════════════════════════════════ */
+    function renderFilterBar() {
+      const isAtPresent = offset === 0;
+      const root = document.getElementById('filter-bar-root');
+
+      root.innerHTML = `
+        <div class="report-filter-bar">
+          <div class="period-group">
+            ${['day','week','month','year'].map(p => `
+              <button class="period-btn${period === p ? ' is-active' : ''}" data-period="${p}">
+                ${p.charAt(0).toUpperCase() + p.slice(1)}
+              </button>`).join('')}
+          </div>
+
+          <div class="period-nav">
+            <button class="nav-arrow" id="nav-prev" title="Previous">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 18l-6-6 6-6"/>
+              </svg>
+            </button>
+            <span class="nav-label" id="nav-label">${getPeriodLabel()}</span>
+            <button class="nav-arrow" id="nav-next" title="Next" ${isAtPresent ? 'disabled' : ''}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </button>
+          </div>
+
+          <button class="nav-jump${isAtPresent ? ' is-current' : ''}" id="nav-jump">
+            ${getJumpLabel()}
+          </button>
+        </div>
+      `;
+
+      /* Period buttons */
+      root.querySelectorAll('.period-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          period = btn.dataset.period;
+          offset = 0;
+          renderAll();
+        });
+      });
+
+      /* Prev / Next */
+      root.querySelector('#nav-prev').addEventListener('click', () => { offset--; renderAll(); });
+      root.querySelector('#nav-next').addEventListener('click', () => { if (offset < 0) { offset++; renderAll(); } });
+
+      /* Jump to present */
+      root.querySelector('#nav-jump').addEventListener('click', () => { offset = 0; renderAll(); });
+    }
+
+    /* ═══════════════════════════════════════════
+       RENDER REPORT BODY
+    ═══════════════════════════════════════════ */
+    function renderReport() {
+      const transactions = filterByPeriod(allTransactions);
+      const main = document.getElementById('report-main');
+
+      /* ── Always-visible monthly summary uses ALL transactions ── */
+      function monthKey(dateStr) {
+        if (!dateStr) return null;
+        const [y, m] = dateStr.split('-');
+        return `${y}-${m}`;
+      }
+      function monthLabel(key) {
+        const [y, m] = key.split('-').map(Number);
+        return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+      }
+      const monthMap = {};
+      allTransactions.forEach(t => {
+        const k = monthKey(t.date);
+        if (!k) return;
+        if (!monthMap[k]) monthMap[k] = { income: 0, expense: 0 };
+        if (t.amount > 0) monthMap[k].income += t.amount;
+        else              monthMap[k].expense += Math.abs(t.amount);
+      });
+      const sortedMonths = Object.keys(monthMap).sort().slice(-6).reverse();
+
+      /* ── Scoped stats ── */
+      const income  = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+      const expense = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+      const balance = income - expense;
+      const txCount = transactions.length;
+      const savingsRate = income > 0 ? Math.round(((income - expense) / income) * 100) : 0;
+
+      /* ── Top expense categories (scoped) ── */
+      const catMap = {};
+      transactions.filter(t => t.amount < 0).forEach(t => {
+        const c = t.category || 'Other';
+        catMap[c] = (catMap[c] || 0) + Math.abs(t.amount);
+      });
+      const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      const maxCat  = topCats[0]?.[1] || 1;
+
+      /* ── Top income categories (scoped) ── */
+      const incCatMap = {};
+      transactions.filter(t => t.amount > 0).forEach(t => {
+        const c = t.category || 'Other';
+        incCatMap[c] = (incCatMap[c] || 0) + t.amount;
+      });
+      const topIncCats = Object.entries(incCatMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      const maxIncCat  = topIncCats[0]?.[1] || 1;
+
+      /* ── Period subtitle ── */
+      const { start, end } = getPeriodRange();
+      const periodSubtitle = (() => {
+        if (period === 'day') {
+          return start.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        }
+        if (period === 'week') {
+          return `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+        }
+        if (period === 'month') {
+          return start.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+        }
+        if (period === 'year') {
+          return String(start.getFullYear());
+        }
+      })();
+
+      /* ── No data at all ── */
+      if (allTransactions.length === 0) {
+        main.innerHTML = `
+          <div class="report-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 17H5a2 2 0 0 0-2 2v0a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v0a2 2 0 0 0-2-2h-4"/><rect x="9" y="3" width="6" height="14" rx="1"/></svg>
+            <p>No data to report yet.</p>
+            <br>
+            <a onclick="window.location.href='index.html'">Add some transactions first →</a>
+          </div>`;
+        return;
+      }
+
       main.innerHTML = `
-        <div class="report-empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 17H5a2 2 0 0 0-2 2v0a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v0a2 2 0 0 0-2-2h-4"/><rect x="9" y="3" width="6" height="14" rx="1"/></svg>
-          <p>No data to report yet.</p>
-          <br>
-          <a onclick="window.location.href='index.html'">Add some transactions first →</a>
-        </div>`;
-    } else {
-      main.innerHTML = `
-
         <div class="report-title-row">
-          <h1>Full Report</h1>
-          <p>${txCount} transaction${txCount !== 1 ? 's' : ''} · ${fmt(income)} in, ${fmt(expense)} out</p>
+          <h1>${getPeriodLabel()}</h1>
+          <p>${periodSubtitle} &nbsp;·&nbsp; ${txCount} transaction${txCount !== 1 ? 's' : ''}${txCount > 0 ? ` &nbsp;·&nbsp; ${fmt(income)} in, ${fmt(expense)} out` : ''}</p>
         </div>
 
         <!-- Summary strip -->
         <div class="summary-strip">
           <div class="stat-tile">
             <span class="stat-tile-label">Net Balance</span>
-            <span class="stat-tile-value ${balance >= 0 ? 'income' : 'expense'}">${fmt(balance)}</span>
-            <span class="stat-tile-sub">${balance >= 0 ? 'You\'re in the green' : 'Spending exceeds income'}</span>
+            <span class="stat-tile-value ${balance >= 0 ? 'income' : 'expense'}">${txCount > 0 ? fmt(balance) : '—'}</span>
+            <span class="stat-tile-sub">${txCount === 0 ? 'No activity' : balance >= 0 ? 'You\'re in the green' : 'Spending exceeds income'}</span>
           </div>
           <div class="stat-tile">
             <span class="stat-tile-label">Total Income</span>
-            <span class="stat-tile-value income">${fmt(income)}</span>
-            <span class="stat-tile-sub">${transactions.filter(t=>t.amount>0).length} transactions</span>
+            <span class="stat-tile-value income">${txCount > 0 ? fmt(income) : '—'}</span>
+            <span class="stat-tile-sub">${transactions.filter(t=>t.amount>0).length} transaction${transactions.filter(t=>t.amount>0).length !== 1 ? 's' : ''}</span>
           </div>
           <div class="stat-tile">
             <span class="stat-tile-label">Total Expenses</span>
-            <span class="stat-tile-value expense">${fmt(expense)}</span>
-            <span class="stat-tile-sub">${transactions.filter(t=>t.amount<0).length} transactions</span>
+            <span class="stat-tile-value expense">${txCount > 0 ? fmt(expense) : '—'}</span>
+            <span class="stat-tile-sub">${transactions.filter(t=>t.amount<0).length} transaction${transactions.filter(t=>t.amount<0).length !== 1 ? 's' : ''}</span>
           </div>
           <div class="stat-tile">
             <span class="stat-tile-label">Savings Rate</span>
-            <span class="stat-tile-value ${savingsRate >= 0 ? 'income' : 'expense'}">${savingsRate}%</span>
+            <span class="stat-tile-value ${savingsRate >= 0 ? 'income' : 'expense'}">${income > 0 ? savingsRate + '%' : '—'}</span>
             <span class="stat-tile-sub">of income saved</span>
           </div>
         </div>
@@ -174,7 +371,7 @@
           <div class="report-card">
             <p class="report-card-title">Top Expense Categories</p>
             ${topCats.length === 0
-              ? `<div class="chart-placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg><span class="chart-placeholder-label">No expenses yet</span></div>`
+              ? `<div class="section-empty">No expenses in this period</div>`
               : `<div class="category-rows">${topCats.map(([name, amt]) => `
                 <div class="category-row-item">
                   <span class="category-row-name">${name}</span>
@@ -191,7 +388,7 @@
           <div class="report-card">
             <p class="report-card-title">Top Income Sources</p>
             ${topIncCats.length === 0
-              ? `<div class="chart-placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg><span class="chart-placeholder-label">No income yet</span></div>`
+              ? `<div class="section-empty">No income in this period</div>`
               : `<div class="category-rows">${topIncCats.map(([name, amt]) => `
                 <div class="category-row-item">
                   <span class="category-row-name">${name}</span>
@@ -228,9 +425,9 @@
             </div>
           </div>
 
-          <!-- Monthly summary table -->
+          <!-- Monthly summary — always shows ALL-TIME last 6 months -->
           <div class="report-card report-card-wide">
-            <p class="report-card-title">Monthly Summary</p>
+            <p class="report-card-title">Monthly Summary <span style="font-size:11px;font-weight:500;color:var(--color-text-faint);margin-left:6px;">All time · last 6 months</span></p>
             ${sortedMonths.length === 0
               ? `<p style="color:var(--color-text-faint);font-size:13px">No dated transactions found.</p>`
               : `<table class="months-table">
@@ -261,6 +458,16 @@
         </div>
       `;
     }
+
+    /* ═══════════════════════════════════════════
+       ORCHESTRATE
+    ═══════════════════════════════════════════ */
+    function renderAll() {
+      renderFilterBar();
+      renderReport();
+    }
+
+    renderAll();
   </script>
 </body>
 </html>

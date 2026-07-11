@@ -11,7 +11,7 @@ Foundational (do these regardless of direction)
 
 Makes it actually useful
 
-Filter/search history by category, date range, or type
+        Filter/search history by category, date range, or type
 Monthly view with month-over-month comparison
 Charts — spending by category (pie), balance over time (line) — this is the single highest-impact addition for "feels like a product"
 Recurring transactions (rent, subscriptions) that auto-add
@@ -27,3 +27,77 @@ Shared/household budgets (multiple users on one set of finances)
 Bank sync via Plaid or similar (this is the big one competitors like YNAB/Mint live on)
 Email/push notifications ("You're at 90% of your Dining budget")
 Tiered pricing (free tier: manual entry only; paid: bank sync, multi-account, exports)
+
+
+
+
+
+
+Improvements :
+summary card : Net balance X amount 
+↑ +12% from last month
+Highest Ever Balance
+Last updated 2 mins ago
+
+Income card
+₹15,999
++₹4,200 this month
+2 transactions
+Average income ₹8,000
+
+Expense card
+₹6,619
+↓ 18% vs last month
+Largest expense:
+Electricity ₹2,500
+
+Savings
+59%
+Goal: 70%
+11% remaining
+
+
+
+
+
+
+                        - Balance Over Time
+                        Current is only a line.
+                        Turn it into a dashboard.
+                        Add
+                        ✔ Daily
+                        ✔ Weekly
+                        ✔ Monthly
+                        toggle
+                        Daily | Weekly | Monthly
+Also allow Income & Expenses Balance toggle.
+
++ Monthly Summary chart
+
+
+
+8. Spending Calendar
+Heatmap.
+GitHub contribution style.
+■■□■■■■
+□□□□■■
+■■■■■■■
+Hover July 12
+        Spent ₹799
+This is a very modern feature.
+
+
+Budgeting + savings goals
+
+
+-Smart Insights (AI-ish)
+        One of the best additions.
+        Examples
+        You spent 34% more on Shopping than last month.
+        Bills account for 75% of your expenses.
+        You could save ₹1,400/month by reducing subscriptions.
+        Your savings rate improved by 19%.
+        Your average daily spending is ₹352.
+        Friday is your highest spending day.
+
+Export Center
