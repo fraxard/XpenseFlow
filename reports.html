@@ -27,18 +27,21 @@
       </div>
       <div class="header-actions">
         <button class="back-btn" onclick="window.location.href='index.html'">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round">
+            <path d="M19 12H5" />
+            <path d="M12 19l-7-7 7-7" />
           </svg>
           Back to Dashboard
         </button>
         <button id="theme-toggle" class="theme-toggle" aria-label="Toggle Theme">
           <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="5"/>
-            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            <circle cx="12" cy="12" r="5" />
+            <path
+              d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
           </svg>
           <svg class="moon-icon" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+            <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
           </svg>
         </button>
       </div>
@@ -71,6 +74,7 @@
     applyTheme(localStorage.getItem('theme') || 'dark');
     document.getElementById('theme-toggle').addEventListener('click', () => {
       applyTheme(document.body.classList.contains('light-theme') ? 'dark' : 'light');
+      renderBalanceChart();
     });
 
     /* ═══════════════════════════════════════════
@@ -183,10 +187,10 @@
 
     /* ── Short label used in the jump button ── */
     function getJumpLabel() {
-      if (period === 'day')   return 'Today';
-      if (period === 'week')  return 'This week';
+      if (period === 'day') return 'Today';
+      if (period === 'week') return 'This week';
       if (period === 'month') return 'This month';
-      if (period === 'year')  return 'This year';
+      if (period === 'year') return 'This year';
     }
 
     /* ── Filter transactions to the selected period ── */
@@ -210,7 +214,7 @@
       root.innerHTML = `
         <div class="report-filter-bar">
           <div class="period-group">
-            ${['day','week','month','year'].map(p => `
+            ${['day', 'week', 'month', 'year'].map(p => `
               <button class="period-btn${period === p ? ' is-active' : ''}" data-period="${p}">
                 ${p.charAt(0).toUpperCase() + p.slice(1)}
               </button>`).join('')}
@@ -276,12 +280,12 @@
         if (!k) return;
         if (!monthMap[k]) monthMap[k] = { income: 0, expense: 0 };
         if (t.amount > 0) monthMap[k].income += t.amount;
-        else              monthMap[k].expense += Math.abs(t.amount);
+        else monthMap[k].expense += Math.abs(t.amount);
       });
       const sortedMonths = Object.keys(monthMap).sort().slice(-6).reverse();
 
       /* ── Scoped stats (current period) ── */
-      const income  = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+      const income = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
       const expense = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
       const balance = income - expense;
       const txCount = transactions.length;
@@ -291,9 +295,9 @@
       const prevOffset = offset - 1;
       const origOffset = offset;
       offset = prevOffset;
-      const prevTxns  = filterByPeriod(allTransactions);
+      const prevTxns = filterByPeriod(allTransactions);
       offset = origOffset; // restore
-      const prevIncome  = prevTxns.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+      const prevIncome = prevTxns.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
       const prevExpense = prevTxns.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
       const prevBalance = prevIncome - prevExpense;
 
@@ -304,21 +308,21 @@
       }
       function pctBadge(pct, positiveIsGood = true) {
         if (pct === null) return '';
-        const up   = pct >= 0;
+        const up = pct >= 0;
         const good = positiveIsGood ? up : !up;
         const arrow = up ? '↑' : '↓';
-        const cls   = good ? 'tile-badge-good' : 'tile-badge-bad';
-        const sign  = up ? '+' : '';
+        const cls = good ? 'tile-badge-good' : 'tile-badge-bad';
+        const sign = up ? '+' : '';
         return `<span class="tile-badge ${cls}">${arrow} ${sign}${pct}% vs last ${period}</span>`;
       }
       function deltaBadge(curr, prev, positiveIsGood = true) {
         const diff = curr - prev;
         if (prev === 0 && curr === 0) return '';
-        const up   = diff >= 0;
+        const up = diff >= 0;
         const good = positiveIsGood ? up : !up;
         const arrow = up ? '↑' : '↓';
-        const cls   = good ? 'tile-badge-good' : 'tile-badge-bad';
-        const sign  = up ? '+' : '';
+        const cls = good ? 'tile-badge-good' : 'tile-badge-bad';
+        const sign = up ? '+' : '';
         return `<span class="tile-badge ${cls}">${arrow} ${sign}${fmt(Math.abs(diff))} vs last ${period}</span>`;
       }
 
@@ -341,7 +345,7 @@
 
       /* ── Average income per income transaction ── */
       const incomeTxns = transactions.filter(t => t.amount > 0);
-      const avgIncome  = incomeTxns.length > 0 ? income / incomeTxns.length : 0;
+      const avgIncome = incomeTxns.length > 0 ? income / incomeTxns.length : 0;
 
       /* ── Largest single expense ── */
       const expenseTxns = transactions.filter(t => t.amount < 0);
@@ -356,7 +360,7 @@
         catMap[c] = (catMap[c] || 0) + Math.abs(t.amount);
       });
       const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
-      const maxCat  = topCats[0]?.[1] || 1;
+      const maxCat = topCats[0]?.[1] || 1;
 
       /* ── Top income categories (scoped) ── */
       const incCatMap = {};
@@ -365,7 +369,7 @@
         incCatMap[c] = (incCatMap[c] || 0) + t.amount;
       });
       const topIncCats = Object.entries(incCatMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
-      const maxIncCat  = topIncCats[0]?.[1] || 1;
+      const maxIncCat = topIncCats[0]?.[1] || 1;
 
       /* ── Period subtitle ── */
       const { start, end } = getPeriodRange();
@@ -455,47 +459,49 @@
           <div class="report-card">
             <p class="report-card-title">Top Expense Categories</p>
             ${topCats.length === 0
-              ? `<div class="section-empty">No expenses in this period</div>`
-              : `<div class="category-rows">${topCats.map(([name, amt]) => `
+          ? `<div class="section-empty">No expenses in this period</div>`
+          : `<div class="category-rows">${topCats.map(([name, amt]) => `
                 <div class="category-row-item">
                   <span class="category-row-name">${name}</span>
                   <div class="category-bar-wrap">
-                    <div class="category-bar-fill" style="width:${Math.round((amt/maxCat)*100)}%"></div>
+                    <div class="category-bar-fill" style="width:${Math.round((amt / maxCat) * 100)}%"></div>
                   </div>
                   <span class="category-row-amount">${fmt(amt)}</span>
                 </div>`).join('')}
               </div>`
-            }
+        }
           </div>
 
           <!-- Income by category -->
           <div class="report-card">
             <p class="report-card-title">Top Income Sources</p>
             ${topIncCats.length === 0
-              ? `<div class="section-empty">No income in this period</div>`
-              : `<div class="category-rows">${topIncCats.map(([name, amt]) => `
+          ? `<div class="section-empty">No income in this period</div>`
+          : `<div class="category-rows">${topIncCats.map(([name, amt]) => `
                 <div class="category-row-item">
                   <span class="category-row-name">${name}</span>
                   <div class="category-bar-wrap">
-                    <div class="category-bar-fill income-bar" style="width:${Math.round((amt/maxIncCat)*100)}%"></div>
+                    <div class="category-bar-fill income-bar" style="width:${Math.round((amt / maxIncCat) * 100)}%"></div>
                   </div>
                   <span class="category-row-amount">${fmt(amt)}</span>
                 </div>`).join('')}
               </div>`
-            }
+        }
           </div>
 
           <!-- Balance over time chart placeholder -->
           <div class="report-card report-card-wide">
-            <p class="report-card-title">Balance Over Time</p>
-            <div class="chart-placeholder" style="height:180px">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-              </svg>
-              <span class="chart-placeholder-label">Chart coming in v0.7</span>
-              <span class="chart-placeholder-sub">Line chart will render here</span>
-            </div>
-          </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;">
+    <p class="report-card-title" style="margin:0">Balance Over Time</p>
+    <div class="period-group" id="chart-period-group">
+      <button class="period-btn is-active" data-chart-period="week">Week</button>
+      <button class="period-btn" data-chart-period="month">Month</button>
+      <button class="period-btn" data-chart-period="year">Year</button>
+    </div>
+  </div>
+  <canvas id="balance-chart" height="180" style="width:100%;display:block;"></canvas>
+  <div id="balance-chart-empty" class="section-empty" style="display:none">No data for this period</div>
+</div>
 
           <!-- Spending vs income chart placeholder -->
           <div class="report-card report-card-wide">
@@ -513,8 +519,8 @@
           <div class="report-card report-card-wide">
             <p class="report-card-title">Monthly Summary <span style="font-size:11px;font-weight:500;color:var(--color-text-faint);margin-left:6px;">All time · last 6 months</span></p>
             ${sortedMonths.length === 0
-              ? `<p style="color:var(--color-text-faint);font-size:13px">No dated transactions found.</p>`
-              : `<table class="months-table">
+          ? `<p style="color:var(--color-text-faint);font-size:13px">No dated transactions found.</p>`
+          : `<table class="months-table">
                   <thead>
                     <tr>
                       <th>Month</th>
@@ -525,22 +531,24 @@
                   </thead>
                   <tbody>
                     ${sortedMonths.map(k => {
-                      const { income: mi, expense: me } = monthMap[k];
-                      const net = mi - me;
-                      return `<tr>
+            const { income: mi, expense: me } = monthMap[k];
+            const net = mi - me;
+            return `<tr>
                         <td class="month-name">${monthLabel(k)}</td>
                         <td class="pos">${fmt(mi)}</td>
                         <td class="neg">${fmt(me)}</td>
                         <td class="${net >= 0 ? 'pos' : 'neg'}">${fmt(net)}</td>
                       </tr>`;
-                    }).join('')}
+          }).join('')}
                   </tbody>
                 </table>`
-            }
+        }
           </div>
 
         </div>
       `;
+    initChartPeriodBtns();
+    renderBalanceChart();
     }
 
     /* ═══════════════════════════════════════════
@@ -551,7 +559,198 @@
       renderReport();
     }
 
+
+    /* ═══════════════════════════════════════════
+   BALANCE OVER TIME CHART
+═══════════════════════════════════════════ */
+    let chartPeriod = 'month'; // week | month | year
+
+    function getChartPoints() {
+      const now = new Date(TODAY);
+      const points = []; // { label, balance }
+
+      if (chartPeriod === 'week') {
+        // Last 7 days
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(now);
+          d.setDate(now.getDate() - i);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          const label = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
+          const dayTxns = allTransactions.filter(t => t.date === key);
+          const net = dayTxns.reduce((s, t) => s + t.amount, 0);
+          points.push({ label, net, key });
+        }
+      } else if (chartPeriod === 'month') {
+        // Last 12 months
+        for (let i = 11; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          const label = d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+          const monthTxns = allTransactions.filter(t => t.date && t.date.startsWith(key));
+          const net = monthTxns.reduce((s, t) => s + t.amount, 0);
+          points.push({ label, net, key });
+        }
+      } else if (chartPeriod === 'year') {
+        // Last 5 years
+        for (let i = 4; i >= 0; i--) {
+          const y = now.getFullYear() - i;
+          const label = String(y);
+          const yearTxns = allTransactions.filter(t => t.date && t.date.startsWith(String(y)));
+          const net = yearTxns.reduce((s, t) => s + t.amount, 0);
+          points.push({ label, net, key: label });
+        }
+      }
+
+      // Convert per-period net to cumulative running balance
+      let running = 0;
+      return points.map(p => {
+        running += p.net;
+        return { label: p.label, balance: running };
+      });
+    }
+
+    function renderBalanceChart() {
+      const canvas = document.getElementById('balance-chart');
+      const emptyEl = document.getElementById('balance-chart-empty');
+      const points = getChartPoints();
+      const hasData = points.some(p => p.balance !== 0);
+
+      if (!hasData) {
+        canvas.style.display = 'none';
+        emptyEl.style.display = 'block';
+        return;
+      }
+      canvas.style.display = 'block';
+      emptyEl.style.display = 'none';
+
+      const dpr = window.devicePixelRatio || 1;
+      const W = canvas.parentElement.clientWidth - 48; // card padding
+      const H = 200;
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+
+      // Palette from CSS vars (read computed)
+      const style = getComputedStyle(document.body);
+      const colorIncome = style.getPropertyValue('--color-income').trim() || '#4ade80';
+      const colorExpense = style.getPropertyValue('--color-expense').trim() || '#fb7185';
+      const colorBorder = style.getPropertyValue('--color-border').trim() || '#2b2b31';
+      const colorFaint = style.getPropertyValue('--color-text-faint').trim() || '#7b7b84';
+      const colorText = style.getPropertyValue('--color-text').trim() || '#f5f5f5';
+
+      const PAD = { top: 16, right: 16, bottom: 40, left: 60 };
+      const cW = W - PAD.left - PAD.right;
+      const cH = H - PAD.top - PAD.bottom;
+
+      const values = points.map(p => p.balance);
+      const minV = Math.min(...values, 0);
+      const maxV = Math.max(...values, 0);
+      const range = maxV - minV || 1;
+
+      function xOf(i) { return PAD.left + (i / (points.length - 1)) * cW; }
+      function yOf(v) { return PAD.top + (1 - (v - minV) / range) * cH; }
+
+      // Grid lines (4 horizontal)
+      ctx.strokeStyle = colorBorder;
+      ctx.lineWidth = 1;
+      for (let t = 0; t <= 4; t++) {
+        const v = minV + (range * t / 4);
+        const y = yOf(v);
+        ctx.beginPath();
+        ctx.moveTo(PAD.left, y);
+        ctx.lineTo(W - PAD.right, y);
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Y labels
+        ctx.fillStyle = colorFaint;
+        ctx.font = '11px Inter, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(fmt(v), PAD.left - 8, y + 4);
+      }
+
+      // Zero line (if visible)
+      if (minV < 0 && maxV > 0) {
+        const y0 = yOf(0);
+        ctx.strokeStyle = colorBorder;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(PAD.left, y0);
+        ctx.lineTo(W - PAD.right, y0);
+        ctx.stroke();
+      }
+
+      // Gradient fill under the line
+      const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top + cH);
+      const lastBalance = values[values.length - 1];
+      const lineColor = lastBalance >= 0 ? colorIncome : colorExpense;
+      grad.addColorStop(0, lineColor + '33');
+      grad.addColorStop(1, lineColor + '00');
+
+      ctx.beginPath();
+      points.forEach((p, i) => {
+        i === 0 ? ctx.moveTo(xOf(i), yOf(p.balance)) : ctx.lineTo(xOf(i), yOf(p.balance));
+      });
+      ctx.lineTo(xOf(points.length - 1), PAD.top + cH);
+      ctx.lineTo(xOf(0), PAD.top + cH);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Line
+      ctx.beginPath();
+      points.forEach((p, i) => {
+        i === 0 ? ctx.moveTo(xOf(i), yOf(p.balance)) : ctx.lineTo(xOf(i), yOf(p.balance));
+      });
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 2.5;
+      ctx.lineJoin = 'round';
+      ctx.setLineDash([]);
+      ctx.stroke();
+
+      // Dots + X labels
+      points.forEach((p, i) => {
+        const x = xOf(i);
+        const y = yOf(p.balance);
+
+        // Dot
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = lineColor;
+        ctx.fill();
+        ctx.strokeStyle = style.getPropertyValue('--color-surface').trim() || '#161618';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // X label (skip some if crowded)
+        const skip = points.length > 8 ? Math.ceil(points.length / 8) : 1;
+        if (i % skip === 0 || i === points.length - 1) {
+          ctx.fillStyle = colorFaint;
+          ctx.font = '11px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(p.label, x, H - PAD.bottom + 16);
+        }
+      });
+    }
+
+    function initChartPeriodBtns() {
+      document.getElementById('chart-period-group')?.querySelectorAll('[data-chart-period]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          chartPeriod = btn.dataset.chartPeriod;
+          document.querySelectorAll('[data-chart-period]').forEach(b => b.classList.remove('is-active'));
+          btn.classList.add('is-active');
+          renderBalanceChart();
+        });
+      });
+    }
+
+
+
     renderAll();
   </script>
 </body>
+
 </html>
