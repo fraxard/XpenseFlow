@@ -230,19 +230,26 @@
 
       <!-- ── Row 3: Budgets placeholder + History ── -->
 
-      <!-- Budgets placeholder card -->
+      <!-- Budgets card -->
       <section class="card budgets-card" id="budgets-section">
-        <h2 class="card-title">Budgets</h2>
-        <p class="card-subtitle">Set daily, weekly or monthly spending limits</p>
-        <div class="budget-coming-soon">
+        <div class="budgets-header">
+          <div>
+            <h2 class="card-title">Budgets</h2>
+            <p class="card-subtitle">Spending limits with live tracking</p>
+          </div>
+          <button class="btn-icon-sm" id="add-budget-btn" title="Add budget">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          </button>
+        </div>
+        <ul class="budget-list" id="budget-list"></ul>
+        <div class="budget-empty" id="budget-empty">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <rect x="2" y="7" width="20" height="14" rx="2"/>
             <path d="M16 7V5a2 2 0 0 0-4 0v2"/>
             <line x1="12" y1="12" x2="12" y2="16"/>
             <line x1="10" y1="14" x2="14" y2="14"/>
           </svg>
-          <span>Budgets coming in v0.7</span>
-          <span style="font-size:11px;opacity:0.6">Daily · Weekly · Monthly limits with progress bars</span>
+          No budgets yet. Add one to start tracking.
         </div>
       </section>
 
@@ -312,7 +319,7 @@
 
     </main>
 
-    <footer class="app-footer">by fraxard, v0.6</footer>
+    <footer class="app-footer">by fraxard, v0.68.1</footer>
   </div>
 
   <div id="welcome-modal" class="modal">

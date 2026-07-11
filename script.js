@@ -1040,3 +1040,277 @@ document.getElementById('add-recurring-btn')?.addEventListener('click', () => op
 /* ── Run on page load ── */
 processRecurring();
 renderRecurringList();
+
+
+/* ═══════════════════════════════════════════════════════
+   BUDGETS
+   ═══════════════════════════════════════════════════════ */
+
+const BUDGET_PERIOD_LABELS = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
+
+/* ── Storage ── */
+function getBudgets() {
+  return JSON.parse(localStorage.getItem('budgets')) || [];
+}
+function saveBudgets(b) {
+  localStorage.setItem('budgets', JSON.stringify(b));
+}
+
+/* ── Compute how much has been spent for a budget in its current period ── */
+function computeSpent(budget) {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+
+  let start;
+  if (budget.period === 'daily') {
+    start = new Date(y, m, d);
+  } else if (budget.period === 'weekly') {
+    // Monday-based week
+    const day = now.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    start = new Date(y, m, d + diff);
+  } else {
+    start = new Date(y, m, 1);
+  }
+  start.setHours(0, 0, 0, 0);
+
+  return transactions
+    .filter(t => {
+      if (t.amount >= 0) return false; // expenses only
+      if (budget.category !== 'All' && t.category !== budget.category) return false;
+      if (!t.date) return false;
+      const [ty, tm, td] = t.date.split('-').map(Number);
+      const txDate = new Date(ty, tm - 1, td);
+      return txDate >= start;
+    })
+    .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+}
+
+/* ── Render ── */
+function renderBudgetList() {
+  const listEl  = document.getElementById('budget-list');
+  const emptyEl = document.getElementById('budget-empty');
+  if (!listEl) return;
+
+  const budgets = getBudgets();
+  listEl.innerHTML = '';
+
+  if (budgets.length === 0) {
+    emptyEl.classList.add('is-visible');
+    return;
+  }
+  emptyEl.classList.remove('is-visible');
+
+  budgets.forEach(b => {
+    const spent = computeSpent(b);
+    const pct   = b.limit > 0 ? Math.min((spent / b.limit) * 100, 100) : 0;
+    const rawPct = b.limit > 0 ? (spent / b.limit) * 100 : 0;
+    const isOver = spent > b.limit;
+    const isWarn = !isOver && rawPct >= 80;
+
+    const fillCls = isOver ? 'over' : isWarn ? 'warn' : '';
+    const remaining = b.limit - spent;
+
+    const li = document.createElement('li');
+    li.className = `budget-item${isOver ? ' is-over' : ''}`;
+    li.dataset.id = b.id;
+
+    li.innerHTML = `
+      <div class="budget-top-row">
+        <div class="budget-info">
+          <span class="budget-name">${b.category === 'All' ? 'All Expenses' : b.category}</span>
+          <div class="budget-meta">
+            <span class="budget-period-badge">${BUDGET_PERIOD_LABELS[b.period]}</span>
+            ${isOver
+              ? `<span style="color:var(--color-expense);font-size:11px;font-weight:600">↑ ${formatCurrency(Math.abs(remaining))} over limit</span>`
+              : `<span>${formatCurrency(remaining)} left</span>`
+            }
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="budget-amounts">
+            <span class="budget-spent">${formatCurrency(spent)}</span>
+            <span class="budget-limit">/ ${formatCurrency(b.limit)}</span>
+          </div>
+          <div class="budget-actions">
+            <button class="budget-action-btn budget-edit-btn" title="Edit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+            </button>
+            <button class="budget-action-btn budget-delete-btn" title="Remove">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="budget-bar-wrap">
+        <div class="budget-bar-fill ${fillCls}" style="width:${pct}%"></div>
+      </div>
+      <div class="budget-bottom-row">
+        <span class="budget-pct">${Math.round(rawPct)}% used</span>
+        <span class="budget-over-badge">⚠ Over budget</span>
+      </div>
+    `;
+    listEl.appendChild(li);
+  });
+
+  /* Delegated events */
+  listEl.addEventListener('click', e => {
+    const item = e.target.closest('.budget-item');
+    if (!item) return;
+    const id = +item.dataset.id;
+    if (e.target.closest('.budget-delete-btn')) {
+      saveBudgets(getBudgets().filter(b => b.id !== id));
+      renderBudgetList();
+    } else if (e.target.closest('.budget-edit-btn')) {
+      openBudgetModal(id);
+    }
+  });
+}
+
+/* ── Build modal (once) ── */
+function buildBudgetModal() {
+  if (document.getElementById('budget-modal-overlay')) return;
+
+  /* Gather all expense categories for the dropdown */
+  const allExpenseCats = ['All', ...categoryOptions.expense, ...customCategories.expense];
+
+  const overlay = document.createElement('div');
+  overlay.id = 'budget-modal-overlay';
+  overlay.className = 'budget-modal-overlay';
+  overlay.innerHTML = `
+    <div class="budget-modal" role="dialog" aria-modal="true" aria-labelledby="budget-modal-title">
+      <h3 id="budget-modal-title">Add Budget</h3>
+
+      <div class="form-control">
+        <label for="budget-category">Category</label>
+        <select id="budget-category">
+          ${allExpenseCats.map(c => `<option value="${c}">${c === 'All' ? 'All Expenses' : c}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="form-row">
+        <div class="form-control">
+          <label for="budget-limit">Limit (${currentCurrency})</label>
+          <input type="number" id="budget-limit" placeholder="0.00" min="0" step="0.01">
+          <span class="error-message" id="budget-limit-error"></span>
+        </div>
+        <div class="form-control">
+          <label for="budget-period">Period</label>
+          <select id="budget-period">
+            <option value="monthly">Monthly</option>
+            <option value="weekly">Weekly</option>
+            <option value="daily">Daily</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="budget-modal-actions">
+        <button class="btn btn-ghost" id="budget-cancel-btn">Cancel</button>
+        <button class="btn" id="budget-save-btn">Add Budget</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeBudgetModal(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && overlay.classList.contains('is-open')) closeBudgetModal();
+  });
+  document.getElementById('budget-cancel-btn').addEventListener('click', closeBudgetModal);
+
+  document.getElementById('budget-save-btn').addEventListener('click', () => {
+    const limitEl    = document.getElementById('budget-limit');
+    const limitErrEl = document.getElementById('budget-limit-error');
+    const limit = parseFloat(limitEl.value);
+
+    if (!limitEl.value || isNaN(limit) || limit <= 0) {
+      limitEl.classList.add('invalid');
+      limitErrEl.textContent = 'Enter a limit greater than 0';
+      return;
+    }
+    limitEl.classList.remove('invalid');
+    limitErrEl.textContent = '';
+
+    const editId = +overlay.dataset.editingId || null;
+    const b = {
+      id:       editId || generateID(),
+      category: document.getElementById('budget-category').value,
+      limit,
+      period:   document.getElementById('budget-period').value
+    };
+
+    let budgets = getBudgets();
+    if (editId) {
+      budgets = budgets.map(x => x.id === editId ? b : x);
+    } else {
+      budgets.push(b);
+    }
+    saveBudgets(budgets);
+    closeBudgetModal();
+    renderBudgetList();
+  });
+}
+
+function openBudgetModal(editId = null) {
+  buildBudgetModal();
+  const overlay  = document.getElementById('budget-modal-overlay');
+  const titleEl  = document.getElementById('budget-modal-title');
+  const saveBtn  = document.getElementById('budget-save-btn');
+  const limitEl  = document.getElementById('budget-limit');
+  const limitErr = document.getElementById('budget-limit-error');
+
+  /* Reset */
+  limitEl.value = '';
+  limitEl.classList.remove('invalid');
+  limitErr.textContent = '';
+  document.getElementById('budget-period').value = 'monthly';
+  delete overlay.dataset.editingId;
+
+  /* Re-populate categories (custom cats may have been added since last build) */
+  const catSel = document.getElementById('budget-category');
+  catSel.innerHTML = '';
+  ['All', ...categoryOptions.expense, ...customCategories.expense].forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c === 'All' ? 'All Expenses' : c;
+    catSel.appendChild(opt);
+  });
+
+  if (editId) {
+    const b = getBudgets().find(x => x.id === editId);
+    if (b) {
+      titleEl.textContent   = 'Edit Budget';
+      saveBtn.textContent   = 'Save Changes';
+      overlay.dataset.editingId = editId;
+      catSel.value          = b.category;
+      limitEl.value         = b.limit;
+      document.getElementById('budget-period').value = b.period;
+    }
+  } else {
+    titleEl.textContent = 'Add Budget';
+    saveBtn.textContent = 'Add Budget';
+  }
+
+  overlay.classList.add('is-open');
+  setTimeout(() => limitEl.focus(), 50);
+}
+
+function closeBudgetModal() {
+  document.getElementById('budget-modal-overlay')?.classList.remove('is-open');
+}
+
+/* ── Wire + button ── */
+document.getElementById('add-budget-btn')?.addEventListener('click', () => openBudgetModal());
+
+/* ── Re-render budgets whenever transactions change ── */
+const _origUpdateLS = updateLocalStorage;
+// Patch updateLocalStorage to also refresh budgets
+const _patchedUpdateLS = function() {
+  _origUpdateLS();
+  renderBudgetList();
+};
+// Override the global reference used in addTrans / removeTransaction
+window.updateLocalStorage = _patchedUpdateLS;
+
+/* ── Initial render ── */
+renderBudgetList();

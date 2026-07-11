@@ -1907,3 +1907,295 @@ body.light-theme .recurring-item:hover {
   background-color: var(--color-income-bg);
   color: var(--color-income);
 }
+
+
+/* ══════════════════════════════════════════
+   BUDGETS CARD
+   ══════════════════════════════════════════ */
+
+.budgets-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.budget-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.budget-empty {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 36px 20px;
+  text-align: center;
+  color: var(--color-text-faint);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.budget-empty.is-visible {
+  display: flex;
+}
+
+.budget-empty svg {
+  width: 32px;
+  height: 32px;
+  opacity: 0.3;
+}
+
+/* Individual budget row */
+.budget-item {
+  padding: 13px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  transition: border-color 0.15s ease;
+}
+
+.budget-item:hover {
+  border-color: #45454d;
+}
+
+body.light-theme .budget-item:hover {
+  border-color: #d0d5dd;
+}
+
+.budget-item.is-over {
+  border-color: var(--color-expense);
+  background: var(--color-expense-bg);
+}
+
+.budget-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.budget-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.budget-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.budget-meta {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.budget-period-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-faint);
+}
+
+.budget-amounts {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.budget-spent {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.budget-item.is-over .budget-spent {
+  color: var(--color-expense);
+}
+
+.budget-limit {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-faint);
+}
+
+/* Progress bar */
+.budget-bar-wrap {
+  height: 5px;
+  background: var(--color-border);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+
+.budget-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-income);
+  transition: width 0.5s cubic-bezier(.4, 0, .2, 1), background 0.3s ease;
+  max-width: 100%;
+}
+
+.budget-bar-fill.warn {
+  background: #f59e0b;
+}
+
+.budget-bar-fill.over {
+  background: var(--color-expense);
+}
+
+.budget-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.budget-pct {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  font-weight: 500;
+}
+
+.budget-item.is-over .budget-pct {
+  color: var(--color-expense);
+  font-weight: 700;
+}
+
+.budget-over-badge {
+  display: none;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--color-expense-bg);
+  color: var(--color-expense);
+  letter-spacing: 0.2px;
+}
+
+.budget-item.is-over .budget-over-badge {
+  display: inline-flex;
+}
+
+/* Hover actions */
+.budget-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
+}
+
+.budget-item:hover .budget-actions {
+  opacity: 1;
+}
+
+.budget-action-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.budget-action-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.budget-edit-btn:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.budget-delete-btn:hover {
+  background: var(--color-expense-bg);
+  color: var(--color-expense);
+}
+
+/* ── Budget modal ── */
+.budget-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 900;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.budget-modal-overlay.is-open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.budget-modal {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  width: 90%;
+  max-width: 380px;
+  box-shadow: var(--shadow-hero);
+  animation: slideUp 0.25s ease;
+}
+
+.budget-modal h3 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 20px;
+}
+
+.budget-modal .form-control {
+  margin-bottom: 14px;
+}
+
+.budget-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.budget-modal-actions .btn {
+  flex: 1;
+  margin: 0;
+}
