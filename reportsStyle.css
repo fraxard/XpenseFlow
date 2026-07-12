@@ -490,3 +490,95 @@ body.light-theme .report-card {
     font-size: 13px;
     font-weight: 500;
 }
+
+/* ── Export button & dropdown ── */
+.export-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.export-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-muted);
+    color: var(--color-text-muted);
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.export-btn svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.export-btn:hover {
+    background: var(--color-border);
+    color: var(--color-text);
+}
+
+.export-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 190px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    padding: 6px 0;
+    z-index: 200;
+    display: none;
+}
+
+.export-dropdown.is-open {
+    display: block;
+}
+
+.export-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text);
+    cursor: pointer;
+    transition: background 0.15s ease;
+    border: none;
+    background: none;
+    width: 100%;
+    font-family: var(--font-body);
+    text-align: left;
+}
+
+.export-option:hover {
+    background: var(--color-surface-muted);
+}
+
+.export-option svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    color: var(--color-text-faint);
+}
+
+.export-option-label {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.export-option-sub {
+    font-size: 11px;
+    color: var(--color-text-faint);
+    font-weight: 400;
+}

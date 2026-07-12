@@ -5,6 +5,9 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Export libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
   <link rel="stylesheet" href="style.css">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <title>Full Report — XpenseFlow</title>
@@ -401,9 +404,47 @@
       }
 
       main.innerHTML = `
-        <div class="report-title-row">
-          <h1>${getPeriodLabel()}</h1>
-          <p>${periodSubtitle} &nbsp;·&nbsp; ${txCount} transaction${txCount !== 1 ? 's' : ''}${txCount > 0 ? ` &nbsp;·&nbsp; ${fmt(income)} in, ${fmt(expense)} out` : ''}</p>
+        <div class="report-title-row" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+          <div>
+            <h1 style="margin:0 0 4px">${getPeriodLabel()}</h1>
+            <p style="margin:0">${periodSubtitle} &nbsp;·&nbsp; ${txCount} transaction${txCount !== 1 ? 's' : ''}${txCount > 0 ? ` &nbsp;·&nbsp; ${fmt(income)} in, ${fmt(expense)} out` : ''}</p>
+          </div>
+          <div class="export-wrap" style="padding-top:4px">
+            <button class="export-btn" id="export-btn" onclick="toggleExportDropdown(event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Export Report
+            </button>
+            <div class="export-dropdown" id="export-dropdown">
+              <button class="export-option" onclick="exportXLSX()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <path d="M8 13h2l2 4 2-4h2"/>
+                </svg>
+                <span class="export-option-label">
+                  Export as .xlsx
+                  <span class="export-option-sub">Spreadsheet with all data sheets</span>
+                </span>
+              </button>
+              <button class="export-option" onclick="exportDOCX()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                  <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                <span class="export-option-label">
+                  Export as .docx
+                  <span class="export-option-sub">Formatted Word document</span>
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Summary strip -->
@@ -1366,6 +1407,407 @@
           btn.classList.add('is-active');
           renderIEChart();
         });
+      });
+    }
+    /* ═══════════════════════════════════════════
+           EXPORT LOGIC
+        ═══════════════════════════════════════════ */
+
+    function toggleExportDropdown(e) {
+      e.stopPropagation();
+      document.getElementById('export-dropdown').classList.toggle('is-open');
+    }
+
+    document.addEventListener('click', () => {
+      document.getElementById('export-dropdown')?.classList.remove('is-open');
+    });
+
+    /* ── Shared: gather all data for current filter state ── */
+    function gatherExportData() {
+      const periodTxns = filterByPeriod(allTransactions);
+      const income = periodTxns.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+      const expense = periodTxns.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+      const balance = income - expense;
+      const savingsRate = income > 0 ? Math.round(((income - expense) / income) * 100) : 0;
+
+      // Category breakdown (expenses)
+      const expCatMap = {};
+      periodTxns.filter(t => t.amount < 0).forEach(t => {
+        const c = t.category || 'Other';
+        expCatMap[c] = (expCatMap[c] || 0) + Math.abs(t.amount);
+      });
+      const expCategories = Object.entries(expCatMap).sort((a, b) => b[1] - a[1]);
+
+      // Category breakdown (income)
+      const incCatMap = {};
+      periodTxns.filter(t => t.amount > 0).forEach(t => {
+        const c = t.category || 'Other';
+        incCatMap[c] = (incCatMap[c] || 0) + t.amount;
+      });
+      const incCategories = Object.entries(incCatMap).sort((a, b) => b[1] - a[1]);
+
+      // Monthly summary (last 6 months, all-time)
+      const monthMap = {};
+      allTransactions.forEach(t => {
+        const k = t.date ? t.date.slice(0, 7) : null;
+        if (!k) return;
+        if (!monthMap[k]) monthMap[k] = { income: 0, expense: 0 };
+        if (t.amount > 0) monthMap[k].income += t.amount;
+        else monthMap[k].expense += Math.abs(t.amount);
+      });
+      const sortedMonths = Object.keys(monthMap).sort().slice(-6).reverse();
+
+      // Recurring templates
+      const recurring = JSON.parse(localStorage.getItem('recurringTemplates')) || [];
+
+      // Budgets
+      const budgets = JSON.parse(localStorage.getItem('budgets')) || [];
+
+      // BOT chart points (use current chartPeriod)
+      const botPoints = getChartPoints();
+
+      // IE chart points (use current ieChartPeriod)
+      const iePoints = getIEChartPoints();
+
+      return {
+        label: getPeriodLabel(),
+        subtitle: (() => {
+          const { start, end } = getPeriodRange();
+          if (period === 'day') return start.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+          if (period === 'week') return `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+          if (period === 'month') return start.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+          return String(start.getFullYear());
+        })(),
+        income, expense, balance, savingsRate,
+        txCount: periodTxns.length,
+        transactions: [...periodTxns].sort((a, b) => (b.date || '').localeCompare(a.date || '')),
+        expCategories, incCategories,
+        sortedMonths, monthMap,
+        recurring, budgets,
+        botPoints, iePoints,
+        chartPeriod, ieChartPeriod
+      };
+    }
+
+    /* ════════════════════════
+       XLSX EXPORT
+    ════════════════════════ */
+    function exportXLSX() {
+      if (typeof XLSX === 'undefined') {
+        alert('SheetJS library not loaded. Check your internet connection.');
+        return;
+      }
+      document.getElementById('export-dropdown').classList.remove('is-open');
+      const d = gatherExportData();
+      const wb = XLSX.utils.book_new();
+
+      // ── Sheet 1: Summary ──
+      const summaryRows = [
+        ['XpenseFlow — Financial Report'],
+        [`Period: ${d.label} (${d.subtitle})`],
+        [`Generated: ${new Date().toLocaleString()}`],
+        [],
+        ['SUMMARY', ''],
+        ['Total Income', d.income],
+        ['Total Expenses', d.expense],
+        ['Net Balance', d.balance],
+        ['Savings Rate', `${d.savingsRate}%`],
+        ['Transaction Count', d.txCount],
+      ];
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+      wsSummary['!cols'] = [{ wch: 28 }, { wch: 18 }];
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+      // ── Sheet 2: Transactions (period-filtered) ──
+      const txHeader = ['Date', 'Name', 'Category', 'Type', 'Amount'];
+      const txRows = d.transactions.map(t => [
+        t.date || '',
+        t.text || '',
+        t.category || '',
+        t.amount > 0 ? 'Income' : 'Expense',
+        Math.abs(t.amount)
+      ]);
+      const wsTx = XLSX.utils.aoa_to_sheet([txHeader, ...txRows]);
+      wsTx['!cols'] = [{ wch: 12 }, { wch: 26 }, { wch: 16 }, { wch: 10 }, { wch: 14 }];
+      XLSX.utils.book_append_sheet(wb, wsTx, 'Transactions');
+
+      // ── Sheet 3: Category Breakdown ──
+      const catRows = [
+        ['EXPENSE CATEGORIES', ''],
+        ['Category', 'Amount'],
+        ...d.expCategories.map(([c, a]) => [c, a]),
+        [],
+        ['INCOME SOURCES', ''],
+        ['Category', 'Amount'],
+        ...d.incCategories.map(([c, a]) => [c, a])
+      ];
+      const wsCat = XLSX.utils.aoa_to_sheet(catRows);
+      wsCat['!cols'] = [{ wch: 22 }, { wch: 16 }];
+      XLSX.utils.book_append_sheet(wb, wsCat, 'Categories');
+
+      // ── Sheet 4: Monthly Summary (all-time, last 6 months) ──
+      const monthHeader = ['Month', 'Income', 'Expenses', 'Net Balance'];
+      const monthRows = d.sortedMonths.map(k => {
+        const { income: mi, expense: me } = d.monthMap[k];
+        const [y, m] = k.split('-').map(Number);
+        const label = new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+        return [label, mi, me, mi - me];
+      });
+      const wsMonths = XLSX.utils.aoa_to_sheet([monthHeader, ...monthRows]);
+      wsMonths['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+      XLSX.utils.book_append_sheet(wb, wsMonths, 'Monthly Summary');
+
+      // ── Sheet 5: Balance Over Time chart data ──
+      const botHeader = [`Balance Over Time (${d.chartPeriod})`, ''];
+      const botRows = [botHeader, ['Period', 'Cumulative Balance'], ...d.botPoints.map(p => [p.label, p.balance])];
+      const wsBot = XLSX.utils.aoa_to_sheet(botRows);
+      wsBot['!cols'] = [{ wch: 18 }, { wch: 18 }];
+      XLSX.utils.book_append_sheet(wb, wsBot, 'Balance Over Time');
+
+      // ── Sheet 6: Income vs Expenses chart data ──
+      const ieHeader = [`Income vs Expenses (${d.ieChartPeriod})`, '', ''];
+      const ieRows = [
+        ieHeader,
+        ['Period', 'Income', 'Expenses'],
+        ...d.iePoints.labels.map((lbl, i) => [lbl, d.iePoints.incomePoints[i], d.iePoints.expensePoints[i]])
+      ];
+      const wsIE = XLSX.utils.aoa_to_sheet(ieRows);
+      wsIE['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 14 }];
+      XLSX.utils.book_append_sheet(wb, wsIE, 'Income vs Expenses');
+
+      // ── Sheet 7: Recurring Templates ──
+      if (d.recurring.length > 0) {
+        const recHeader = ['Name', 'Type', 'Amount', 'Frequency', 'Category', 'Next Date'];
+        const recRows = d.recurring.map(r => [r.name, r.type, r.amount, r.frequency, r.category, r.nextDate]);
+        const wsRec = XLSX.utils.aoa_to_sheet([recHeader, ...recRows]);
+        wsRec['!cols'] = [{ wch: 22 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 14 }];
+        XLSX.utils.book_append_sheet(wb, wsRec, 'Recurring');
+      }
+
+      // ── Sheet 8: Budgets ──
+      if (d.budgets.length > 0) {
+        const budHeader = ['Category', 'Limit', 'Period'];
+        const budRows = d.budgets.map(b => [b.category === 'All' ? 'All Expenses' : b.category, b.limit, b.period]);
+        const wsBud = XLSX.utils.aoa_to_sheet([budHeader, ...budRows]);
+        wsBud['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 12 }];
+        XLSX.utils.book_append_sheet(wb, wsBud, 'Budgets');
+      }
+
+      const filename = `XpenseFlow_${d.label.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, filename);
+    }
+
+    /* ════════════════════════
+       DOCX EXPORT
+    ════════════════════════ */
+    function exportDOCX() {
+      if (typeof docx === 'undefined') {
+        alert('docx library not loaded. Check your internet connection.');
+        return;
+      }
+      document.getElementById('export-dropdown').classList.remove('is-open');
+      const d = gatherExportData();
+
+      const {
+        Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+        HeadingLevel, AlignmentType, WidthType, BorderStyle, ShadingType,
+        PageBreak
+      } = docx;
+
+      const GRAY = 'F3F4F6';
+      const GREEN = 'D1FAE5';
+      const RED = 'FFE4E6';
+      const DARK = '111827';
+
+      function h1(text) {
+        return new Paragraph({
+          children: [new TextRun({ text, bold: true, size: 36, color: DARK })],
+          spacing: { after: 80 }
+        });
+      }
+
+      function h2(text) {
+        return new Paragraph({
+          children: [new TextRun({ text, bold: true, size: 26, color: '374151' })],
+          spacing: { before: 280, after: 100 }
+        });
+      }
+
+      function p(text, opts = {}) {
+        return new Paragraph({
+          children: [new TextRun({ text, size: 20, color: '6B7280', ...opts })],
+          spacing: { after: 60 }
+        });
+      }
+
+      function divider() {
+        return new Paragraph({
+          border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' } },
+          spacing: { before: 120, after: 120 }
+        });
+      }
+
+      function metaRow(label, value, color) {
+        return new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 20, color: '374151' })] })],
+              width: { size: 40, type: WidthType.PERCENTAGE },
+              shading: { fill: GRAY, type: ShadingType.CLEAR, color: 'auto' },
+            }),
+            new TableCell({
+              children: [new Paragraph({ children: [new TextRun({ text: value, size: 20, bold: true, color: color || DARK })] })],
+              width: { size: 60, type: WidthType.PERCENTAGE },
+            }),
+          ]
+        });
+      }
+
+      function dataTable(headers, rows) {
+        return new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({
+              children: headers.map(h => new TableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 18, color: '6B7280' })] })],
+                shading: { fill: 'F9FAFB', type: ShadingType.CLEAR }
+              }))
+            }),
+            ...rows.map(row => new TableRow({
+              children: row.map((cell, ci) => new TableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: String(cell), size: 18, color: '374151' })] })],
+              }))
+            }))
+          ]
+        });
+      }
+
+      const children = [
+        // ── Cover ──
+        h1('XpenseFlow — Financial Report'),
+        p(`Period: ${d.label}  ·  ${d.subtitle}`, { bold: true, color: '374151' }),
+        p(`Generated: ${new Date().toLocaleString()}  ·  ${d.txCount} transactions`),
+        divider(),
+
+        // ── Summary ──
+        h2('Summary'),
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            metaRow('Total Income', fmt(d.income), '16a34a'),
+            metaRow('Total Expenses', fmt(d.expense), 'e11d48'),
+            metaRow('Net Balance', fmt(d.balance), d.balance >= 0 ? '16a34a' : 'e11d48'),
+            metaRow('Savings Rate', `${d.savingsRate}%`, d.savingsRate >= 20 ? '16a34a' : '374151'),
+            metaRow('Transaction Count', String(d.txCount)),
+          ]
+        }),
+        divider(),
+
+        // ── Expense Categories ──
+        h2('Top Expense Categories'),
+        ...(d.expCategories.length === 0
+          ? [p('No expenses in this period.')]
+          : [dataTable(['Category', 'Amount', '% of Total'],
+            d.expCategories.map(([c, a]) => [c, fmt(a), d.expense > 0 ? `${Math.round((a / d.expense) * 100)}%` : '—'])
+          )]
+        ),
+        divider(),
+
+        // ── Income Sources ──
+        h2('Top Income Sources'),
+        ...(d.incCategories.length === 0
+          ? [p('No income in this period.')]
+          : [dataTable(['Category', 'Amount', '% of Total'],
+            d.incCategories.map(([c, a]) => [c, fmt(a), d.income > 0 ? `${Math.round((a / d.income) * 100)}%` : '—'])
+          )]
+        ),
+        divider(),
+
+        // ── Transactions ──
+        h2(`Transactions (${d.label})`),
+        ...(d.transactions.length === 0
+          ? [p('No transactions in this period.')]
+          : [dataTable(
+            ['Date', 'Name', 'Category', 'Type', 'Amount'],
+            d.transactions.map(t => [
+              t.date || '',
+              t.text || '',
+              t.category || '',
+              t.amount > 0 ? 'Income' : 'Expense',
+              `${t.amount > 0 ? '+' : '-'}${fmt(Math.abs(t.amount))}`
+            ])
+          )]
+        ),
+        divider(),
+
+        // ── Monthly Summary ──
+        h2('Monthly Summary (All Time · Last 6 Months)'),
+        ...(d.sortedMonths.length === 0
+          ? [p('No dated transactions found.')]
+          : [dataTable(
+            ['Month', 'Income', 'Expenses', 'Net Balance'],
+            d.sortedMonths.map(k => {
+              const { income: mi, expense: me } = d.monthMap[k];
+              const [y, m] = k.split('-').map(Number);
+              const lbl = new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+              return [lbl, fmt(mi), fmt(me), fmt(mi - me)];
+            })
+          )]
+        ),
+        divider(),
+
+        // ── Balance Over Time ──
+        h2(`Balance Over Time (${d.chartPeriod} view)`),
+        dataTable(
+          ['Period', 'Cumulative Balance'],
+          d.botPoints.map(p => [p.label, fmt(p.balance)])
+        ),
+        divider(),
+
+        // ── Income vs Expenses ──
+        h2(`Income vs Expenses (${d.ieChartPeriod} view)`),
+        dataTable(
+          ['Period', 'Income', 'Expenses'],
+          d.iePoints.labels.map((lbl, i) => [lbl, fmt(d.iePoints.incomePoints[i]), fmt(d.iePoints.expensePoints[i])])
+        ),
+        divider(),
+      ];
+
+      // ── Recurring ──
+      if (d.recurring.length > 0) {
+        children.push(h2('Recurring Transactions'));
+        children.push(dataTable(
+          ['Name', 'Type', 'Amount', 'Frequency', 'Category', 'Next Date'],
+          d.recurring.map(r => [r.name, r.type, fmt(r.amount), r.frequency, r.category, r.nextDate])
+        ));
+        children.push(divider());
+      }
+
+      // ── Budgets ──
+      if (d.budgets.length > 0) {
+        children.push(h2('Budgets'));
+        children.push(dataTable(
+          ['Category', 'Limit', 'Period'],
+          d.budgets.map(b => [b.category === 'All' ? 'All Expenses' : b.category, fmt(b.limit), b.period])
+        ));
+      }
+
+      const doc = new Document({
+        sections: [{
+          properties: {
+            page: { margin: { top: 720, right: 900, bottom: 720, left: 900 } }
+          },
+          children
+        }]
+      });
+
+      Packer.toBlob(doc).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `XpenseFlow_${d.label.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.docx`;
+        a.click();
+        URL.revokeObjectURL(url);
       });
     }
 
