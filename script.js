@@ -86,7 +86,25 @@ function icon(name) {
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 }
 
-let currentCurrency = localStorage.getItem('currency') || 'USD';
+function detectDefaultCurrency() {
+    const localeToCurrency = {
+        'en-US': 'USD', 'en-GB': 'GBP', 'en-IN': 'INR', 'en-AU': 'AUD',
+        'en-CA': 'CAD', 'de': 'EUR', 'fr': 'EUR', 'it': 'EUR', 'es': 'EUR',
+        'pt-BR': 'BRL', 'ja': 'JPY', 'zh': 'CNY', 'ko': 'KRW', 'ru': 'RUB',
+        'ar': 'AED', 'hi': 'INR', 'bn': 'BDT', 'tr': 'TRY', 'nl': 'EUR',
+        'pl': 'PLN', 'sv': 'SEK', 'da': 'DKK', 'nb': 'NOK', 'fi': 'EUR',
+    };
+    const supported = ['USD','EUR','GBP','INR','JPY','AUD','CAD'];
+    const locale = navigator.language || 'en-US';
+    const exact = localeToCurrency[locale];
+    if (exact && supported.includes(exact)) return exact;
+    const lang = locale.split('-')[0];
+    const fromLang = localeToCurrency[lang];
+    if (fromLang && supported.includes(fromLang)) return fromLang;
+    return 'USD';
+}
+
+let currentCurrency = localStorage.getItem('currency') || detectDefaultCurrency();
 currencySelect.value = currentCurrency;
 
 function formatCurrency(value) {

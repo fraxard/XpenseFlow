@@ -9,8 +9,8 @@ koulkoudakis / expense-income-tracker
         Filter/search history by category, date range, or type
         Monthly view with month-over-month comparison
         Charts — spending by category (pie), balance over time (line) — this is the single highest-impact addition for "feels like a product"
-Line 275 index.html Recurring transactions (rent, subscriptions) that auto-add
-Budgets per category with progress bars / over-budget warnings
+        index.html Recurring transactions (rent, subscriptions) that auto-add
+        Budgets per category with progress bars / over-budget warnings
 CSV/PDF export of transactions
 
 What makes it a SaaS, not just a nicer local app
