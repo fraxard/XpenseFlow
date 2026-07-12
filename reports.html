@@ -489,6 +489,34 @@
         }
           </div>
 
+
+          <!-- Spending Heatmap -->
+<div class="report-card">
+  <p class="report-card-title">Spending Calendar</p>
+  <div id="heatmap-root"></div>
+</div>
+
+<!-- Smart Insights placeholder -->
+<div class="report-card">
+  <p class="report-card-title">Smart Insights <span style="font-size:11px;font-weight:500;color:var(--color-text-faint);margin-left:6px;">Coming soon</span></p>
+  <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+    ${[
+          ['', 'Spending breakdown', 'See where your money goes each month'],
+          ['', 'Budget tips', 'Get suggestions based on your habits'],
+          ['', 'Trend analysis', 'Spot patterns across weeks and months'],
+          ['', 'Savings goals', 'Track progress toward your targets'],
+        ].map(([emoji, title, sub]) => `
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:var(--radius-md);background:var(--color-surface-muted);border:1px solid var(--color-border);opacity:0.55;">
+        <span style="font-size:18px;line-height:1;flex-shrink:0;margin-top:1px;">${emoji}</span>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--color-text);margin-bottom:2px;">${title}</div>
+          <div style="font-size:11px;color:var(--color-text-faint);">${sub}</div>
+        </div>
+      </div>
+    `).join('')}
+  </div>
+</div>
+
           <!-- Balance over time chart placeholder -->
           <div class="report-card report-card-wide">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;">
@@ -562,7 +590,215 @@
       renderBalanceChart();
       initIEChartBtns();
       renderIEChart();
+      renderHeatmap();
     }
+
+    function renderHeatmap() {
+      const root = document.getElementById('heatmap-root');
+      if (!root) return;
+
+      // Build spending map: dateKey -> total expense
+      const spendMap = {};
+      allTransactions.filter(t => t.amount < 0).forEach(t => {
+        if (!t.date) return;
+        spendMap[t.date] = (spendMap[t.date] || 0) + Math.abs(t.amount);
+      });
+
+      // Last 20 weeks, starting from Monday
+      const today = new Date(TODAY);
+      const dayOfWeek = today.getDay(); // 0=Sun
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      // End on the Sunday of current week
+      const endDate = new Date(today);
+      endDate.setDate(today.getDate() + (6 - daysToMonday));
+
+      const WEEKS = 22;
+      const startDate = new Date(endDate);
+      startDate.setDate(endDate.getDate() - WEEKS * 7 + 1);
+
+      // Collect all days
+      const days = [];
+      const cursor = new Date(startDate);
+      while (cursor <= endDate) {
+        const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+        days.push({ key, date: new Date(cursor), spend: spendMap[key] || 0 });
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      const maxSpend = Math.max(...days.map(d => d.spend), 1);
+
+      // Color intensity (dark theme aware)
+      const isLight = document.body.classList.contains('light-theme');
+      function cellColor(spend) {
+        if (spend === 0) return isLight ? '#e5e7eb' : '#1d1d20';
+        const intensity = spend / maxSpend;
+        if (intensity < 0.25) return isLight ? '#fca5a5' : '#4b1c24';
+        if (intensity < 0.5) return isLight ? '#f87171' : '#7f1d2a';
+        if (intensity < 0.75) return isLight ? '#ef4444' : '#b91c1c';
+        return isLight ? '#b91c1c' : '#fb7185';
+      }
+
+      // Group into weeks (columns)
+      const weeks = [];
+      for (let i = 0; i < days.length; i += 7) {
+        weeks.push(days.slice(i, i + 7));
+      }
+
+      // Month labels: find first day of each month in the grid
+      const monthLabels = [];
+      weeks.forEach((week, wi) => {
+        week.forEach((day, di) => {
+          if (day.date.getDate() === 1 || (wi === 0 && di === 0)) {
+            monthLabels.push({
+              wi,
+              label: day.date.toLocaleDateString(undefined, { month: 'short' })
+            });
+          }
+        });
+      });
+
+      const CELL = 13;
+      const GAP = 3;
+      const W = weeks.length * (CELL + GAP);
+      const H = 7 * (CELL + GAP);
+      const DAY_LABELS = ['M', '', 'W', '', 'F', '', 'S'];
+
+      // Tooltip state
+      // REPLACE with:
+      let tooltipEl = document.getElementById('heatmap-tooltip');
+      if (!tooltipEl) {
+        tooltipEl = document.createElement('div');
+        tooltipEl.id = 'heatmap-tooltip';
+        tooltipEl.style.cssText = `
+    position:fixed;pointer-events:none;z-index:9999;
+    background:var(--color-surface);border:1px solid var(--color-border);
+    border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;
+    color:var(--color-text);box-shadow:var(--shadow-md);
+    visibility:hidden;white-space:nowrap;
+    left:-9999px;top:-9999px;
+  `;
+        document.body.appendChild(tooltipEl);
+      }
+
+      root.innerHTML = `
+    <div style="overflow-x:auto;padding-bottom:4px;">
+      <div style="position:relative;min-width:${W + 24}px;">
+        <!-- Month labels row -->
+        <div style="display:flex;margin-left:24px;margin-bottom:4px;height:14px;position:relative;">
+          ${monthLabels.map(ml => `
+            <span style="
+              position:absolute;
+              left:${ml.wi * (CELL + GAP)}px;
+              font-size:10px;font-weight:600;
+              color:var(--color-text-faint);
+              white-space:nowrap;
+            ">${ml.label}</span>
+          `).join('')}
+        </div>
+        <!-- Grid -->
+        <div style="display:flex;gap:${GAP}px;margin-left:24px;">
+          <!-- Day-of-week labels -->
+          <div style="position:absolute;left:0;top:18px;display:flex;flex-direction:column;gap:${GAP}px;">
+            ${DAY_LABELS.map(l => `<span style="font-size:9px;color:var(--color-text-faint);height:${CELL}px;line-height:${CELL}px;width:18px;text-align:right;">${l}</span>`).join('')}
+          </div>
+          <!-- Week columns -->
+          <div id="heatmap-grid" style="display:flex;gap:${GAP}px;"></div>
+        </div>
+        <!-- Legend -->
+        <div style="display:flex;align-items:center;gap:4px;margin-top:10px;margin-left:24px;font-size:10px;color:var(--color-text-faint);">
+          Less
+          ${[0, 0.2, 0.45, 0.7, 1].map(v => {
+        const c = v === 0 ? (isLight ? '#e5e7eb' : '#1d1d20') : cellColor(v * maxSpend + 0.001);
+        return `<span style="width:${CELL}px;height:${CELL}px;border-radius:3px;background:${c};display:inline-block;"></span>`;
+      }).join('')}
+          More
+        </div>
+      </div>
+    </div>
+  `;
+
+      const grid = document.getElementById('heatmap-grid');
+
+      weeks.forEach(week => {
+        const col = document.createElement('div');
+        col.style.cssText = `display:flex;flex-direction:column;gap:${GAP}px;`;
+
+        week.forEach(day => {
+          const cell = document.createElement('div');
+          cell.style.cssText = `
+        width:${CELL}px;height:${CELL}px;border-radius:3px;
+        background:${cellColor(day.spend)};cursor:${day.spend > 0 ? 'pointer' : 'default'};
+        transition:opacity 0.1s ease;flex-shrink:0;
+      `;
+
+          const dateLabel = day.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+          const isToday = day.key === `${TODAY.getFullYear()}-${String(TODAY.getMonth() + 1).padStart(2, '0')}-${String(TODAY.getDate()).padStart(2, '0')}`;
+          if (isToday) {
+            cell.style.outline = '2px solid var(--color-text-faint)';
+            cell.style.outlineOffset = '1px';
+          }
+
+
+          cell.addEventListener('mouseenter', (e) => {
+            tooltipEl.innerHTML = day.spend > 0
+              ? `<span style="color:var(--color-text-faint)">${dateLabel}</span><br>Spent <span style="color:var(--color-expense)">${fmt(day.spend)}</span>`
+              : `<span style="color:var(--color-text-faint)">${dateLabel}</span><br><span style="color:var(--color-text-faint)">No spending</span>`;
+
+            // Move to top-left off-screen, make visible, force reflow, then measure
+            tooltipEl.style.left = '0px';
+            tooltipEl.style.top = '0px';
+            tooltipEl.style.visibility = 'visible';
+            void tooltipEl.offsetWidth; // force layout so measurements are accurate
+
+            const tw = tooltipEl.offsetWidth;
+            const th = tooltipEl.offsetHeight;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+
+            let left = e.clientX + 12;
+            let top = e.clientY - th - 10;
+
+            if (left + tw > vw - 8) left = e.clientX - tw - 12;
+            if (left < 8) left = 8;
+            if (top < 8) top = e.clientY + 14;
+            if (top + th > vh - 8) top = vh - th - 8;
+
+            tooltipEl.style.left = left + 'px';
+            tooltipEl.style.top = top + 'px';
+            cell.style.opacity = '0.75';
+          });
+
+          cell.addEventListener('mousemove', (e) => {
+            const tw = tooltipEl.offsetWidth;
+            const th = tooltipEl.offsetHeight;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+
+            let left = e.clientX + 12;
+            let top = e.clientY - th - 10;
+
+            if (left + tw > vw - 8) left = e.clientX - tw - 12;
+            if (left < 8) left = 8;
+            if (top < 8) top = e.clientY + 14;
+            if (top + th > vh - 8) top = vh - th - 8;
+
+            tooltipEl.style.left = left + 'px';
+            tooltipEl.style.top = top + 'px';
+          });
+
+          cell.addEventListener('mouseleave', () => {
+            tooltipEl.style.visibility = 'hidden';
+            tooltipEl.style.left = '-9999px';
+            cell.style.opacity = '1';
+          });
+
+          col.appendChild(cell);
+        });
+        grid.appendChild(col);
+      });
+    }
+
+
 
     /* ═══════════════════════════════════════════
        ORCHESTRATE
