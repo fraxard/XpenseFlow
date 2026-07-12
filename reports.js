@@ -1,0 +1,1752 @@
+
+/* ═══════════════════════════════════════════
+   THEME
+═══════════════════════════════════════════ */
+function applyTheme(theme) {
+    document.body.classList.toggle('light-theme', theme === 'light');
+    document.body.classList.toggle('dark-theme', theme === 'dark');
+    localStorage.setItem('theme', theme);
+    const btn = document.getElementById('theme-toggle');
+    if (btn) {
+        btn.setAttribute('aria-pressed', String(theme === 'light'));
+        btn.title = theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+    }
+}
+applyTheme(localStorage.getItem('theme') || 'dark');
+document.getElementById('theme-toggle').addEventListener('click', () => {
+    applyTheme(document.body.classList.contains('light-theme') ? 'dark' : 'light');
+    renderBalanceChart();
+});
+
+/* ═══════════════════════════════════════════
+   DATA & CURRENCY
+═══════════════════════════════════════════ */
+const allTransactions = JSON.parse(localStorage.getItem('transactions')) || [];
+const currency = localStorage.getItem('currency') || 'USD';
+
+function fmt(value) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value);
+}
+
+/* ═══════════════════════════════════════════
+   PERIOD STATE
+   period: 'day' | 'week' | 'month' | 'year'
+   offset: integer (0 = current, -1 = previous, +1 = next)
+═══════════════════════════════════════════ */
+let period = 'month';
+let offset = 0;
+
+const TODAY = new Date();
+TODAY.setHours(0, 0, 0, 0);
+
+/* ── Date helpers ── */
+function startOfWeek(d) {
+    // Monday-based week
+    const day = d.getDay(); // 0=Sun
+    const diff = (day === 0) ? -6 : 1 - day;
+    const s = new Date(d);
+    s.setDate(d.getDate() + diff);
+    s.setHours(0, 0, 0, 0);
+    return s;
+}
+
+function endOfDay(d) {
+    const e = new Date(d);
+    e.setHours(23, 59, 59, 999);
+    return e;
+}
+
+/* Returns { start: Date, end: Date } for the current period+offset */
+function getPeriodRange() {
+    const now = new Date(TODAY);
+
+    if (period === 'day') {
+        const d = new Date(now);
+        d.setDate(d.getDate() + offset);
+        return { start: d, end: endOfDay(d) };
+    }
+
+    if (period === 'week') {
+        const monday = startOfWeek(now);
+        monday.setDate(monday.getDate() + offset * 7);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        sunday.setHours(23, 59, 59, 999);
+        return { start: monday, end: sunday };
+    }
+
+    if (period === 'month') {
+        const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+        const start = new Date(d.getFullYear(), d.getMonth(), 1);
+        const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        end.setHours(23, 59, 59, 999);
+        return { start, end };
+    }
+
+    if (period === 'year') {
+        const y = now.getFullYear() + offset;
+        return {
+            start: new Date(y, 0, 1),
+            end: new Date(y, 11, 31, 23, 59, 59, 999)
+        };
+    }
+}
+
+/* ── Human-readable period label ── */
+function getPeriodLabel() {
+    const { start, end } = getPeriodRange();
+    const now = new Date(TODAY);
+
+    if (period === 'day') {
+        const diffDays = Math.round((start - now) / 86400000);
+        if (diffDays === 0) return 'Today';
+        if (diffDays === -1) return 'Yesterday';
+        if (diffDays === 1) return 'Tomorrow';
+        return start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+
+    if (period === 'week') {
+        const thisMonday = startOfWeek(now);
+        if (start.getTime() === thisMonday.getTime()) return 'This week';
+        if (start.getTime() === new Date(thisMonday.getTime() - 7 * 86400000).getTime()) return 'Last week';
+        const opts = { month: 'short', day: 'numeric' };
+        return `${start.toLocaleDateString(undefined, opts)} – ${end.toLocaleDateString(undefined, opts)}`;
+    }
+
+    if (period === 'month') {
+        if (offset === 0) return 'This month';
+        if (offset === -1) return 'Last month';
+        return start.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    }
+
+    if (period === 'year') {
+        if (offset === 0) return 'This year';
+        if (offset === -1) return 'Last year';
+        return String(start.getFullYear());
+    }
+}
+
+/* ── Short label used in the jump button ── */
+function getJumpLabel() {
+    if (period === 'day') return 'Today';
+    if (period === 'week') return 'This week';
+    if (period === 'month') return 'This month';
+    if (period === 'year') return 'This year';
+}
+
+/* ── Filter transactions to the selected period ── */
+function filterByPeriod(txns) {
+    const { start, end } = getPeriodRange();
+    return txns.filter(t => {
+        if (!t.date) return false;
+        const [y, m, d] = t.date.split('-').map(Number);
+        const txDate = new Date(y, m - 1, d);
+        return txDate >= start && txDate <= end;
+    });
+}
+
+/* ═══════════════════════════════════════════
+   RENDER FILTER BAR
+═══════════════════════════════════════════ */
+function renderFilterBar() {
+    const isAtPresent = offset === 0;
+    const root = document.getElementById('filter-bar-root');
+
+    root.innerHTML = `
+        <div class="report-filter-bar">
+          <div class="period-group">
+            ${['day', 'week', 'month', 'year'].map(p => `
+              <button class="period-btn${period === p ? ' is-active' : ''}" data-period="${p}">
+                ${p.charAt(0).toUpperCase() + p.slice(1)}
+              </button>`).join('')}
+          </div>
+
+          <div class="period-nav">
+            <button class="nav-arrow" id="nav-prev" title="Previous">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 18l-6-6 6-6"/>
+              </svg>
+            </button>
+            <span class="nav-label" id="nav-label">${getPeriodLabel()}</span>
+            <button class="nav-arrow" id="nav-next" title="Next" ${isAtPresent ? 'disabled' : ''}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </button>
+          </div>
+
+          <button class="nav-jump${isAtPresent ? ' is-current' : ''}" id="nav-jump">
+            ${getJumpLabel()}
+          </button>
+        </div>
+      `;
+
+    /* Period buttons */
+    root.querySelectorAll('.period-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            period = btn.dataset.period;
+            offset = 0;
+            renderAll();
+        });
+    });
+
+    /* Prev / Next */
+    root.querySelector('#nav-prev').addEventListener('click', () => { offset--; renderAll(); });
+    root.querySelector('#nav-next').addEventListener('click', () => { if (offset < 0) { offset++; renderAll(); } });
+
+    /* Jump to present */
+    root.querySelector('#nav-jump').addEventListener('click', () => { offset = 0; renderAll(); });
+}
+
+/* ═══════════════════════════════════════════
+   RENDER REPORT BODY
+═══════════════════════════════════════════ */
+function renderReport() {
+    const transactions = filterByPeriod(allTransactions);
+    const main = document.getElementById('report-main');
+
+    /* ── Always-visible monthly summary uses ALL transactions ── */
+    function monthKey(dateStr) {
+        if (!dateStr) return null;
+        const [y, m] = dateStr.split('-');
+        return `${y}-${m}`;
+    }
+    function monthLabel(key) {
+        const [y, m] = key.split('-').map(Number);
+        return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    }
+    const monthMap = {};
+    allTransactions.forEach(t => {
+        const k = monthKey(t.date);
+        if (!k) return;
+        if (!monthMap[k]) monthMap[k] = { income: 0, expense: 0 };
+        if (t.amount > 0) monthMap[k].income += t.amount;
+        else monthMap[k].expense += Math.abs(t.amount);
+    });
+    const sortedMonths = Object.keys(monthMap).sort().slice(-6).reverse();
+
+    /* ── Scoped stats (current period) ── */
+    const income = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+    const expense = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+    const balance = income - expense;
+    const txCount = transactions.length;
+    const savingsRate = income > 0 ? Math.round(((income - expense) / income) * 100) : 0;
+
+    /* ── Previous period stats for comparison ── */
+    const prevOffset = offset - 1;
+    const origOffset = offset;
+    offset = prevOffset;
+    const prevTxns = filterByPeriod(allTransactions);
+    offset = origOffset; // restore
+    const prevIncome = prevTxns.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+    const prevExpense = prevTxns.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+    const prevBalance = prevIncome - prevExpense;
+
+    /* ── % change helpers ── */
+    function pctChange(curr, prev) {
+        if (prev === 0) return null; // can't compute
+        return Math.round(((curr - prev) / Math.abs(prev)) * 100);
+    }
+    function pctBadge(pct, positiveIsGood = true) {
+        if (pct === null) return '';
+        const up = pct >= 0;
+        const good = positiveIsGood ? up : !up;
+        const arrow = up ? '↑' : '↓';
+        const cls = good ? 'tile-badge-good' : 'tile-badge-bad';
+        const sign = up ? '+' : '';
+        return `<span class="tile-badge ${cls}">${arrow} ${sign}${pct}% vs last ${period}</span>`;
+    }
+    function deltaBadge(curr, prev, positiveIsGood = true) {
+        const diff = curr - prev;
+        if (prev === 0 && curr === 0) return '';
+        const up = diff >= 0;
+        const good = positiveIsGood ? up : !up;
+        const arrow = up ? '↑' : '↓';
+        const cls = good ? 'tile-badge-good' : 'tile-badge-bad';
+        const sign = up ? '+' : '';
+        return `<span class="tile-badge ${cls}">${arrow} ${sign}${fmt(Math.abs(diff))} vs last ${period}</span>`;
+    }
+
+    /* ── Highest-ever net balance across all periods of same type ── */
+    // We build a map of all period-net-balances to find the all-time peak
+    // For simplicity we group by month (the most common period) for "highest ever" badge
+    let highestEverBalance = null;
+    {
+        const mMap = {};
+        allTransactions.forEach(t => {
+            const k = t.date ? t.date.slice(0, 7) : null;
+            if (!k) return;
+            if (!mMap[k]) mMap[k] = 0;
+            mMap[k] += t.amount;
+        });
+        const vals = Object.values(mMap);
+        if (vals.length > 0) highestEverBalance = Math.max(...vals);
+    }
+    const isHighestEver = highestEverBalance !== null && Math.abs(balance - highestEverBalance) < 0.01 && txCount > 0;
+
+    /* ── Average income per income transaction ── */
+    const incomeTxns = transactions.filter(t => t.amount > 0);
+    const avgIncome = incomeTxns.length > 0 ? income / incomeTxns.length : 0;
+
+    /* ── Largest single expense ── */
+    const expenseTxns = transactions.filter(t => t.amount < 0);
+    const largestExpense = expenseTxns.length > 0
+        ? expenseTxns.reduce((max, t) => Math.abs(t.amount) > Math.abs(max.amount) ? t : max, expenseTxns[0])
+        : null;
+
+    /* ── Top expense categories (scoped) ── */
+    const catMap = {};
+    transactions.filter(t => t.amount < 0).forEach(t => {
+        const c = t.category || 'Other';
+        catMap[c] = (catMap[c] || 0) + Math.abs(t.amount);
+    });
+    const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const maxCat = topCats[0]?.[1] || 1;
+
+    /* ── Top income categories (scoped) ── */
+    const incCatMap = {};
+    transactions.filter(t => t.amount > 0).forEach(t => {
+        const c = t.category || 'Other';
+        incCatMap[c] = (incCatMap[c] || 0) + t.amount;
+    });
+    const topIncCats = Object.entries(incCatMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const maxIncCat = topIncCats[0]?.[1] || 1;
+
+    /* ── Period subtitle ── */
+    const { start, end } = getPeriodRange();
+    const periodSubtitle = (() => {
+        if (period === 'day') {
+            return start.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        }
+        if (period === 'week') {
+            return `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+        }
+        if (period === 'month') {
+            return start.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+        }
+        if (period === 'year') {
+            return String(start.getFullYear());
+        }
+    })();
+
+    /* ── No data at all ── */
+    if (allTransactions.length === 0) {
+        main.innerHTML = `
+          <div class="report-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 17H5a2 2 0 0 0-2 2v0a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v0a2 2 0 0 0-2-2h-4"/><rect x="9" y="3" width="6" height="14" rx="1"/></svg>
+            <p>No data to report yet.</p>
+            <br>
+            <a onclick="window.location.href='index.html'">Add some transactions first →</a>
+          </div>`;
+        return;
+    }
+
+    main.innerHTML = `
+        <div class="report-title-row" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+          <div>
+            <h1 style="margin:0 0 4px">${getPeriodLabel()}</h1>
+            <p style="margin:0">${periodSubtitle} &nbsp;·&nbsp; ${txCount} transaction${txCount !== 1 ? 's' : ''}${txCount > 0 ? ` &nbsp;·&nbsp; ${fmt(income)} in, ${fmt(expense)} out` : ''}</p>
+          </div>
+          <div class="export-wrap" style="padding-top:4px">
+            <button class="export-btn" id="export-btn" onclick="toggleExportDropdown(event)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Export Report
+            </button>
+            <div class="export-dropdown" id="export-dropdown">
+              <button class="export-option" onclick="exportXLSX()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <path d="M8 13h2l2 4 2-4h2"/>
+                </svg>
+                <span class="export-option-label">
+                  Export as .xlsx
+                  <span class="export-option-sub">Spreadsheet with all data sheets</span>
+                </span>
+              </button>
+              <button class="export-option" onclick="exportDOCX()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                  <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                <span class="export-option-label">
+                  Export as .docx
+                  <span class="export-option-sub">Formatted Word document</span>
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary strip -->
+        <div class="summary-strip">
+
+          <!-- NET BALANCE tile -->
+          <div class="stat-tile">
+            <span class="stat-tile-label">Net Balance</span>
+            <span class="stat-tile-value ${balance >= 0 ? 'income' : 'expense'}">${txCount > 0 ? fmt(balance) : '—'}</span>
+            <div class="stat-tile-rows">
+              ${txCount > 0 ? pctBadge(pctChange(balance, prevBalance), true) : ''}
+              ${isHighestEver ? `<span class="tile-badge tile-badge-crown">★ Highest ever</span>` : ''}
+              ${txCount === 0 ? `<span class="stat-tile-sub">No activity this ${period}</span>` : ''}
+            </div>
+          </div>
+
+          <!-- INCOME tile -->
+          <div class="stat-tile">
+            <span class="stat-tile-label">Total Income</span>
+            <span class="stat-tile-value income">${txCount > 0 ? fmt(income) : '—'}</span>
+            <div class="stat-tile-rows">
+              ${income > 0 ? deltaBadge(income, prevIncome, true) : ''}
+              <span class="stat-tile-sub">${incomeTxns.length} transaction${incomeTxns.length !== 1 ? 's' : ''}</span>
+              ${avgIncome > 0 ? `<span class="stat-tile-sub">Avg per transaction ${fmt(avgIncome)}</span>` : ''}
+            </div>
+          </div>
+
+          <!-- EXPENSE tile -->
+          <div class="stat-tile">
+            <span class="stat-tile-label">Total Expenses</span>
+            <span class="stat-tile-value expense">${txCount > 0 ? fmt(expense) : '—'}</span>
+            <div class="stat-tile-rows">
+              ${expense > 0 ? pctBadge(pctChange(expense, prevExpense), false) : ''}
+              ${largestExpense ? `<span class="stat-tile-sub">Largest: <strong>${largestExpense.text}</strong> ${fmt(Math.abs(largestExpense.amount))}</span>` : ''}
+            </div>
+          </div>
+
+          <!-- SAVINGS RATE tile (unchanged) -->
+          <div class="stat-tile">
+            <span class="stat-tile-label">Savings Rate</span>
+            <span class="stat-tile-value ${savingsRate >= 0 ? 'income' : 'expense'}">${income > 0 ? savingsRate + '%' : '—'}</span>
+            <div class="stat-tile-rows">
+              <span class="stat-tile-sub">of income saved</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Charts + category rows -->
+        <div class="reports-grid">
+
+          <!-- Spending by category -->
+          <div class="report-card">
+            <p class="report-card-title">Top Expense Categories</p>
+            ${topCats.length === 0
+            ? `<div class="section-empty">No expenses in this period</div>`
+            : `<div class="category-rows">${topCats.map(([name, amt]) => `
+                <div class="category-row-item">
+                  <span class="category-row-name">${name}</span>
+                  <div class="category-bar-wrap">
+                    <div class="category-bar-fill" style="width:${Math.round((amt / maxCat) * 100)}%"></div>
+                  </div>
+                  <span class="category-row-amount">${fmt(amt)}</span>
+                </div>`).join('')}
+              </div>`
+        }
+          </div>
+
+          <!-- Income by category -->
+          <div class="report-card">
+            <p class="report-card-title">Top Income Sources</p>
+            ${topIncCats.length === 0
+            ? `<div class="section-empty">No income in this period</div>`
+            : `<div class="category-rows">${topIncCats.map(([name, amt]) => `
+                <div class="category-row-item">
+                  <span class="category-row-name">${name}</span>
+                  <div class="category-bar-wrap">
+                    <div class="category-bar-fill income-bar" style="width:${Math.round((amt / maxIncCat) * 100)}%"></div>
+                  </div>
+                  <span class="category-row-amount">${fmt(amt)}</span>
+                </div>`).join('')}
+              </div>`
+        }
+          </div>
+
+
+          <!-- Spending Heatmap -->
+<div class="report-card">
+  <p class="report-card-title">Spending Calendar</p>
+  <div id="heatmap-root"></div>
+</div>
+
+<!-- Smart Insights placeholder -->
+<div class="report-card">
+  <p class="report-card-title">Smart Insights</p>
+  <div id="insights-root"></div>
+</div>
+
+          <!-- Balance over time chart placeholder -->
+          <div class="report-card report-card-wide">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;">
+    <p class="report-card-title" style="margin:0">Balance Over Time</p>
+    <div class="period-group" id="chart-period-group">
+      <button class="period-btn" data-chart-period="week">Week</button>
+      <button class="period-btn is-active" data-chart-period="month">Month</button>
+      <button class="period-btn" data-chart-period="year">Year</button>
+    </div>
+  </div>
+  <canvas id="balance-chart" height="180" style="width:100%;display:block;"></canvas>
+  <div id="balance-chart-empty" class="section-empty" style="display:none">No data for this period</div>
+</div>
+
+          <!-- Income vs Expenses line chart -->
+          <div class="report-card report-card-wide">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;">
+              <p class="report-card-title" style="margin:0">Income vs Expenses</p>
+              <div class="period-group" id="ie-chart-period-group">
+                <button class="period-btn" data-ie-period="week">Week</button>
+                <button class="period-btn is-active" data-ie-period="month">Month</button>
+                <button class="period-btn" data-ie-period="year">Year</button>
+              </div>
+            </div>
+            <!-- Custom legend -->
+            <div style="display:flex;gap:18px;margin-bottom:14px;font-size:12px;color:var(--color-text-muted);">
+              <span style="display:flex;align-items:center;gap:6px;">
+                <span style="width:28px;height:2.5px;background:#4ade80;border-radius:2px;display:inline-block;"></span>Income
+              </span>
+              <span style="display:flex;align-items:center;gap:6px;">
+                <span style="width:28px;height:2.5px;background:#fb7185;border-radius:2px;display:inline-block;"></span>Expenses
+              </span>
+            </div>
+            <canvas id="ie-chart" height="180" style="width:100%;display:block;"></canvas>
+            <div id="ie-chart-empty" class="section-empty" style="display:none">No data for this period</div>
+          </div>
+
+          <!-- Monthly summary — always shows ALL-TIME last 6 months -->
+          <div class="report-card report-card-wide">
+            <p class="report-card-title">Monthly Summary <span style="font-size:11px;font-weight:500;color:var(--color-text-faint);margin-left:6px;">All time · last 6 months</span></p>
+            ${sortedMonths.length === 0
+            ? `<p style="color:var(--color-text-faint);font-size:13px">No dated transactions found.</p>`
+            : `<table class="months-table">
+                  <thead>
+                    <tr>
+                      <th>Month</th>
+                      <th>Income</th>
+                      <th>Expenses</th>
+                      <th>Net</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${sortedMonths.map(k => {
+                const { income: mi, expense: me } = monthMap[k];
+                const net = mi - me;
+                return `<tr>
+                        <td class="month-name">${monthLabel(k)}</td>
+                        <td class="pos">${fmt(mi)}</td>
+                        <td class="neg">${fmt(me)}</td>
+                        <td class="${net >= 0 ? 'pos' : 'neg'}">${fmt(net)}</td>
+                      </tr>`;
+            }).join('')}
+                  </tbody>
+                </table>`
+        }
+          </div>
+
+        </div>
+      `;
+    initChartPeriodBtns();
+    renderBalanceChart();
+    initIEChartBtns();
+    renderIEChart();
+    renderHeatmap();
+    renderHeatmap();
+    renderSmartInsights();
+}
+
+function renderHeatmap() {
+    const root = document.getElementById('heatmap-root');
+    if (!root) return;
+
+    // Build spending map: dateKey -> total expense
+    const spendMap = {};
+    allTransactions.filter(t => t.amount < 0).forEach(t => {
+        if (!t.date) return;
+        spendMap[t.date] = (spendMap[t.date] || 0) + Math.abs(t.amount);
+    });
+
+    // Last 20 weeks, starting from Monday
+    const today = new Date(TODAY);
+    const dayOfWeek = today.getDay(); // 0=Sun
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    // End on the Sunday of current week
+    const endDate = new Date(today);
+    endDate.setDate(today.getDate() + (6 - daysToMonday));
+
+    const WEEKS = 22;
+    const startDate = new Date(endDate);
+    startDate.setDate(endDate.getDate() - WEEKS * 7 + 1);
+
+    // Collect all days
+    const days = [];
+    const cursor = new Date(startDate);
+    while (cursor <= endDate) {
+        const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+        days.push({ key, date: new Date(cursor), spend: spendMap[key] || 0 });
+        cursor.setDate(cursor.getDate() + 1);
+    }
+
+    const maxSpend = Math.max(...days.map(d => d.spend), 1);
+
+    // Color intensity (dark theme aware)
+    const isLight = document.body.classList.contains('light-theme');
+    function cellColor(spend) {
+        if (spend === 0) return isLight ? '#e5e7eb' : '#1d1d20';
+        const intensity = spend / maxSpend;
+        if (intensity < 0.25) return isLight ? '#fca5a5' : '#4b1c24';
+        if (intensity < 0.5) return isLight ? '#f87171' : '#7f1d2a';
+        if (intensity < 0.75) return isLight ? '#ef4444' : '#b91c1c';
+        return isLight ? '#b91c1c' : '#fb7185';
+    }
+
+    // Group into weeks (columns)
+    const weeks = [];
+    for (let i = 0; i < days.length; i += 7) {
+        weeks.push(days.slice(i, i + 7));
+    }
+
+    // Month labels: find first day of each month in the grid
+    const monthLabels = [];
+    weeks.forEach((week, wi) => {
+        week.forEach((day, di) => {
+            if (day.date.getDate() === 1 || (wi === 0 && di === 0)) {
+                monthLabels.push({
+                    wi,
+                    label: day.date.toLocaleDateString(undefined, { month: 'short' })
+                });
+            }
+        });
+    });
+
+    const CELL = 13;
+    const GAP = 3;
+    const W = weeks.length * (CELL + GAP);
+    const H = 7 * (CELL + GAP);
+    const DAY_LABELS = ['M', '', 'W', '', 'F', '', 'S'];
+
+    // Tooltip state
+    // REPLACE with:
+    let tooltipEl = document.getElementById('heatmap-tooltip');
+    if (!tooltipEl) {
+        tooltipEl = document.createElement('div');
+        tooltipEl.id = 'heatmap-tooltip';
+        tooltipEl.style.cssText = `
+    position:fixed;pointer-events:none;z-index:9999;
+    background:var(--color-surface);border:1px solid var(--color-border);
+    border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;
+    color:var(--color-text);box-shadow:var(--shadow-md);
+    visibility:hidden;white-space:nowrap;
+    left:-9999px;top:-9999px;
+  `;
+        document.body.appendChild(tooltipEl);
+    }
+
+    root.innerHTML = `
+    <div style="overflow-x:auto;padding-bottom:4px;">
+      <div style="position:relative;min-width:${W + 24}px;">
+        <!-- Month labels row -->
+        <div style="display:flex;margin-left:24px;margin-bottom:4px;height:14px;position:relative;">
+          ${monthLabels.map(ml => `
+            <span style="
+              position:absolute;
+              left:${ml.wi * (CELL + GAP)}px;
+              font-size:10px;font-weight:600;
+              color:var(--color-text-faint);
+              white-space:nowrap;
+            ">${ml.label}</span>
+          `).join('')}
+        </div>
+        <!-- Grid -->
+        <div style="display:flex;gap:${GAP}px;margin-left:24px;">
+          <!-- Day-of-week labels -->
+          <div style="position:absolute;left:0;top:18px;display:flex;flex-direction:column;gap:${GAP}px;">
+            ${DAY_LABELS.map(l => `<span style="font-size:9px;color:var(--color-text-faint);height:${CELL}px;line-height:${CELL}px;width:18px;text-align:right;">${l}</span>`).join('')}
+          </div>
+          <!-- Week columns -->
+          <div id="heatmap-grid" style="display:flex;gap:${GAP}px;"></div>
+        </div>
+        <!-- Legend -->
+        <div style="display:flex;align-items:center;gap:4px;margin-top:10px;margin-left:24px;font-size:10px;color:var(--color-text-faint);">
+          Less
+          ${[0, 0.2, 0.45, 0.7, 1].map(v => {
+        const c = v === 0 ? (isLight ? '#e5e7eb' : '#1d1d20') : cellColor(v * maxSpend + 0.001);
+        return `<span style="width:${CELL}px;height:${CELL}px;border-radius:3px;background:${c};display:inline-block;"></span>`;
+    }).join('')}
+          More
+        </div>
+      </div>
+    </div>
+  `;
+
+    const grid = document.getElementById('heatmap-grid');
+
+    weeks.forEach(week => {
+        const col = document.createElement('div');
+        col.style.cssText = `display:flex;flex-direction:column;gap:${GAP}px;`;
+
+        week.forEach(day => {
+            const cell = document.createElement('div');
+            cell.style.cssText = `
+        width:${CELL}px;height:${CELL}px;border-radius:3px;
+        background:${cellColor(day.spend)};cursor:${day.spend > 0 ? 'pointer' : 'default'};
+        transition:opacity 0.1s ease;flex-shrink:0;
+      `;
+
+            const dateLabel = day.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+            const isToday = day.key === `${TODAY.getFullYear()}-${String(TODAY.getMonth() + 1).padStart(2, '0')}-${String(TODAY.getDate()).padStart(2, '0')}`;
+            if (isToday) {
+                cell.style.outline = '2px solid var(--color-text-faint)';
+                cell.style.outlineOffset = '1px';
+            }
+
+
+            cell.addEventListener('mouseenter', (e) => {
+                tooltipEl.innerHTML = day.spend > 0
+                    ? `<span style="color:var(--color-text-faint)">${dateLabel}</span><br>Spent <span style="color:var(--color-expense)">${fmt(day.spend)}</span>`
+                    : `<span style="color:var(--color-text-faint)">${dateLabel}</span><br><span style="color:var(--color-text-faint)">No spending</span>`;
+
+                // Move to top-left off-screen, make visible, force reflow, then measure
+                tooltipEl.style.left = '0px';
+                tooltipEl.style.top = '0px';
+                tooltipEl.style.visibility = 'visible';
+                void tooltipEl.offsetWidth; // force layout so measurements are accurate
+
+                const tw = tooltipEl.offsetWidth;
+                const th = tooltipEl.offsetHeight;
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+
+                let left = e.clientX + 12;
+                let top = e.clientY - th - 10;
+
+                if (left + tw > vw - 8) left = e.clientX - tw - 12;
+                if (left < 8) left = 8;
+                if (top < 8) top = e.clientY + 14;
+                if (top + th > vh - 8) top = vh - th - 8;
+
+                tooltipEl.style.left = left + 'px';
+                tooltipEl.style.top = top + 'px';
+                cell.style.opacity = '0.75';
+            });
+
+            cell.addEventListener('mousemove', (e) => {
+                const tw = tooltipEl.offsetWidth;
+                const th = tooltipEl.offsetHeight;
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+
+                let left = e.clientX + 12;
+                let top = e.clientY - th - 10;
+
+                if (left + tw > vw - 8) left = e.clientX - tw - 12;
+                if (left < 8) left = 8;
+                if (top < 8) top = e.clientY + 14;
+                if (top + th > vh - 8) top = vh - th - 8;
+
+                tooltipEl.style.left = left + 'px';
+                tooltipEl.style.top = top + 'px';
+            });
+
+            cell.addEventListener('mouseleave', () => {
+                tooltipEl.style.visibility = 'hidden';
+                tooltipEl.style.left = '-9999px';
+                cell.style.opacity = '1';
+            });
+
+            col.appendChild(cell);
+        });
+        grid.appendChild(col);
+    });
+}
+
+
+const INSIGHT_ICONS = {
+    '📈': '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+    '📉': '<path d="M3 7l6 6 4-4 8 8"/><path d="M15 17h6v-6"/>',
+    '🛍️': '<path d="M6 8h12l1 12H5L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+    '💡': '<path d="M12 2a7 7 0 0 1 5 11.9V16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-2.1A7 7 0 0 1 12 2z"/><path d="M9 21h6"/><path d="M10 17v1"/><path d="M14 17v1"/>',
+    '🎯': '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>',
+    '⚠️': '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    '📅': '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+    '📆': '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01"/>',
+    '💰': '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+    '📭': '<path d="M22 12h-6l-2 3H10l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+};
+
+function renderSmartInsights() {
+    const root = document.getElementById('insights-root');
+    if (!root) return;
+
+    const insights = [];
+
+    // ── Helpers ──
+    function monthKeyOf(dateStr) {
+        if (!dateStr) return null;
+        return dateStr.slice(0, 7); // "YYYY-MM"
+    }
+
+    const now = new Date(TODAY);
+    const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevMonthKey = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
+
+    const thisMonthTxns = allTransactions.filter(t => monthKeyOf(t.date) === thisMonthKey);
+    const prevMonthTxns = allTransactions.filter(t => monthKeyOf(t.date) === prevMonthKey);
+
+    const thisExpenses = thisMonthTxns.filter(t => t.amount < 0);
+    const prevExpenses = prevMonthTxns.filter(t => t.amount < 0);
+    const thisIncome = thisMonthTxns.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+    const thisTotal = thisExpenses.reduce((s, t) => s + Math.abs(t.amount), 0);
+    const prevTotal = prevExpenses.reduce((s, t) => s + Math.abs(t.amount), 0);
+
+    // ── 1. Overall spending change vs last month ──
+    if (prevTotal > 0 && thisTotal > 0) {
+        const pct = Math.round(((thisTotal - prevTotal) / prevTotal) * 100);
+        if (Math.abs(pct) >= 5) {
+            const dir = pct > 0 ? 'more' : 'less';
+            const good = pct < 0;
+            insights.push({
+                icon: pct > 0 ? '📈' : '📉',
+                text: `You spent <strong>${Math.abs(pct)}% ${dir}</strong> overall than last month.`,
+                good
+            });
+        }
+    }
+
+    // ── 2. Category-level change vs last month ──
+    const thisCatMap = {};
+    thisExpenses.forEach(t => {
+        const c = t.category || 'Other';
+        thisCatMap[c] = (thisCatMap[c] || 0) + Math.abs(t.amount);
+    });
+    const prevCatMap = {};
+    prevExpenses.forEach(t => {
+        const c = t.category || 'Other';
+        prevCatMap[c] = (prevCatMap[c] || 0) + Math.abs(t.amount);
+    });
+
+    // Find biggest category increase
+    let biggestCatInsight = null;
+    let biggestCatPct = 0;
+    Object.entries(thisCatMap).forEach(([cat, amt]) => {
+        const prev = prevCatMap[cat] || 0;
+        if (prev > 0) {
+            const pct = Math.round(((amt - prev) / prev) * 100);
+            if (Math.abs(pct) > Math.abs(biggestCatPct) && Math.abs(pct) >= 10) {
+                biggestCatPct = pct;
+                biggestCatInsight = { cat, pct, amt, prev };
+            }
+        }
+    });
+    if (biggestCatInsight) {
+        const { cat, pct } = biggestCatInsight;
+        const dir = pct > 0 ? 'more' : 'less';
+        const good = pct < 0;
+        insights.push({
+            icon: '🛍️',
+            text: `You spent <strong>${Math.abs(pct)}% ${dir} on ${cat}</strong> than last month.`,
+            good
+        });
+    }
+
+    // ── 3. Top category share of total expenses ──
+    if (thisTotal > 0 && Object.keys(thisCatMap).length > 0) {
+        const [topCat, topAmt] = Object.entries(thisCatMap).sort((a, b) => b[1] - a[1])[0];
+        const share = Math.round((topAmt / thisTotal) * 100);
+        if (share >= 30) {
+            insights.push({
+                icon: '💡',
+                text: `<strong>${topCat}</strong> accounts for <strong>${share}%</strong> of your expenses this month.`,
+                good: null
+            });
+        }
+    }
+
+    // ── 4. Savings rate this month ──
+    if (thisIncome > 0) {
+        const rate = Math.round(((thisIncome - thisTotal) / thisIncome) * 100);
+        const prevIncome = prevMonthTxns.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+        const prevRate = prevIncome > 0 ? Math.round(((prevIncome - prevTotal) / prevIncome) * 100) : null;
+
+        if (prevRate !== null && Math.abs(rate - prevRate) >= 3) {
+            const improved = rate > prevRate;
+            insights.push({
+                icon: improved ? '🎯' : '⚠️',
+                text: improved
+                    ? `Your savings rate <strong>improved by ${rate - prevRate}%</strong> vs last month (now ${rate}%).`
+                    : `Your savings rate <strong>dropped by ${prevRate - rate}%</strong> vs last month (now ${rate}%).`,
+                good: improved
+            });
+        } else if (rate > 0) {
+            insights.push({
+                icon: '🎯',
+                text: `You're saving <strong>${rate}%</strong> of your income this month.`,
+                good: rate >= 20
+            });
+        }
+    }
+
+    // ── 5. Average daily spending this month ──
+    if (thisTotal > 0) {
+        const daysElapsed = now.getDate(); // days into this month
+        const avgDaily = thisTotal / daysElapsed;
+        insights.push({
+            icon: '📅',
+            text: `Your average daily spending this month is <strong>${fmt(Math.round(avgDaily))}</strong>.`,
+            good: null
+        });
+    }
+
+    // ── 6. Highest spending day of week (all time) ──
+    const dayTotals = [0, 0, 0, 0, 0, 0, 0]; // Sun=0 … Sat=6
+    allTransactions.filter(t => t.amount < 0 && t.date).forEach(t => {
+        const [y, m, d] = t.date.split('-').map(Number);
+        const dow = new Date(y, m - 1, d).getDay();
+        dayTotals[dow] += Math.abs(t.amount);
+    });
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const maxDayIdx = dayTotals.indexOf(Math.max(...dayTotals));
+    if (dayTotals[maxDayIdx] > 0) {
+        insights.push({
+            icon: '📆',
+            text: `<strong>${dayNames[maxDayIdx]}</strong> is your highest spending day historically.`,
+            good: null
+        });
+    }
+
+    // ── 7. Potential savings from top non-essential category ──
+    const nonEssential = ['Entertainment', 'Shopping', 'Dining', 'Subscriptions', 'Other'];
+    let topNonEssAmt = 0, topNonEssCat = null;
+    nonEssential.forEach(cat => {
+        const amt = thisCatMap[cat] || 0;
+        if (amt > topNonEssAmt) { topNonEssAmt = amt; topNonEssCat = cat; }
+    });
+    if (topNonEssCat && topNonEssAmt > 0) {
+        const saving = Math.round(topNonEssAmt * 0.25);
+        if (saving > 0) {
+            insights.push({
+                icon: '💰',
+                text: `Cutting <strong>${topNonEssCat}</strong> by 25% could save you <strong>${fmt(saving)}/month</strong>.`,
+                good: null
+            });
+        }
+    }
+
+    // ── 8. No transactions warning ──
+    if (thisMonthTxns.length === 0) {
+        insights.push({
+            icon: '📭',
+            text: `No transactions recorded for this month yet.`,
+            good: null
+        });
+    }
+
+    // ── Render ──
+    if (insights.length === 0) {
+        root.innerHTML = `<div class="section-empty">Add more transactions to unlock insights.</div>`;
+        return;
+    }
+
+    root.innerHTML = insights.map(ins => {
+        const iconPath = INSIGHT_ICONS[ins.icon] || INSIGHT_ICONS['💡'];
+        const borderColor = ins.good === true
+            ? 'var(--color-income)'
+            : ins.good === false
+                ? 'var(--color-expense)'
+                : 'var(--color-border)';
+        const iconColor = ins.good === true
+            ? 'var(--color-income)'
+            : ins.good === false
+                ? 'var(--color-expense)'
+                : 'var(--color-text-faint)';
+
+        return `
+    <div style="
+      display:flex;align-items:flex-start;gap:12px;
+      padding:11px 13px;margin-bottom:8px;
+      border-radius:var(--radius-md);
+      background:var(--color-surface-muted);
+      border:1px solid var(--color-border);
+      border-left:3px solid ${borderColor};
+    ">
+      <svg viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="1.8"
+        stroke-linecap="round" stroke-linejoin="round"
+        style="width:16px;height:16px;flex-shrink:0;margin-top:2px;">
+        ${iconPath}
+      </svg>
+      <span style="font-size:12.5px;line-height:1.55;color:var(--color-text-muted);">${ins.text}</span>
+    </div>
+  `;
+    }).join('');
+}
+
+
+/* ═══════════════════════════════════════════
+   ORCHESTRATE
+═══════════════════════════════════════════ */
+function renderAll() {
+    renderFilterBar();
+    renderReport();
+}
+
+
+/* ═══════════════════════════════════════════
+BALANCE OVER TIME CHART
+═══════════════════════════════════════════ */
+let chartPeriod = 'month'; // week | month | year
+
+function getChartPoints() {
+    const now = new Date(TODAY);
+    const points = []; // { label, balance }
+
+    if (chartPeriod === 'week') {
+        // Last 7 days
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(now);
+            d.setDate(now.getDate() - i);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            const label = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
+            const dayTxns = allTransactions.filter(t => t.date === key);
+            const net = dayTxns.reduce((s, t) => s + t.amount, 0);
+            points.push({ label, net, key });
+        }
+    } else if (chartPeriod === 'month') {
+        // Last 12 months
+        for (let i = 11; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const label = d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+            const monthTxns = allTransactions.filter(t => t.date && t.date.startsWith(key));
+            const net = monthTxns.reduce((s, t) => s + t.amount, 0);
+            points.push({ label, net, key });
+        }
+    } else if (chartPeriod === 'year') {
+        // Last 5 years
+        for (let i = 4; i >= 0; i--) {
+            const y = now.getFullYear() - i;
+            const label = String(y);
+            const yearTxns = allTransactions.filter(t => t.date && t.date.startsWith(String(y)));
+            const net = yearTxns.reduce((s, t) => s + t.amount, 0);
+            points.push({ label, net, key: label });
+        }
+    }
+
+    // Convert per-period net to cumulative running balance
+    let running = 0;
+    return points.map(p => {
+        running += p.net;
+        return { label: p.label, balance: running };
+    });
+}
+
+function renderBalanceChart() {
+    const canvas = document.getElementById('balance-chart');
+    const emptyEl = document.getElementById('balance-chart-empty');
+    const points = getChartPoints();
+    const hasData = points.some(p => p.balance !== 0);
+
+    if (!hasData) {
+        canvas.style.display = 'none';
+        emptyEl.style.display = 'block';
+        return;
+    }
+    canvas.style.display = 'block';
+    emptyEl.style.display = 'none';
+
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.parentElement.clientWidth - 48; // card padding
+    const H = 200;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    // Palette from CSS vars (read computed)
+    const style = getComputedStyle(document.body);
+    const colorIncome = style.getPropertyValue('--color-income').trim() || '#4ade80';
+    const colorExpense = style.getPropertyValue('--color-expense').trim() || '#fb7185';
+    const colorBorder = style.getPropertyValue('--color-border').trim() || '#2b2b31';
+    const colorFaint = style.getPropertyValue('--color-text-faint').trim() || '#7b7b84';
+    const colorText = style.getPropertyValue('--color-text').trim() || '#f5f5f5';
+
+    const PAD = { top: 16, right: 16, bottom: 40, left: 60 };
+    const cW = W - PAD.left - PAD.right;
+    const cH = H - PAD.top - PAD.bottom;
+
+    const values = points.map(p => p.balance);
+    const minV = Math.min(...values, 0);
+    const maxV = Math.max(...values, 0);
+    const range = maxV - minV || 1;
+
+    function xOf(i) { return PAD.left + (i / (points.length - 1)) * cW; }
+    function yOf(v) { return PAD.top + (1 - (v - minV) / range) * cH; }
+
+    // Grid lines (4 horizontal)
+    ctx.strokeStyle = colorBorder;
+    ctx.lineWidth = 1;
+    for (let t = 0; t <= 4; t++) {
+        const v = minV + (range * t / 4);
+        const y = yOf(v);
+        ctx.beginPath();
+        ctx.moveTo(PAD.left, y);
+        ctx.lineTo(W - PAD.right, y);
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Y labels
+        ctx.fillStyle = colorFaint;
+        ctx.font = '11px Inter, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(fmt(v), PAD.left - 8, y + 4);
+    }
+
+    // Zero line (if visible)
+    if (minV < 0 && maxV > 0) {
+        const y0 = yOf(0);
+        ctx.strokeStyle = colorBorder;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(PAD.left, y0);
+        ctx.lineTo(W - PAD.right, y0);
+        ctx.stroke();
+    }
+
+    // Gradient fill under the line
+    const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top + cH);
+    const lastBalance = values[values.length - 1];
+    const lineColor = lastBalance >= 0 ? colorIncome : colorExpense;
+    grad.addColorStop(0, lineColor + '33');
+    grad.addColorStop(1, lineColor + '00');
+
+    ctx.beginPath();
+    points.forEach((p, i) => {
+        i === 0 ? ctx.moveTo(xOf(i), yOf(p.balance)) : ctx.lineTo(xOf(i), yOf(p.balance));
+    });
+    ctx.lineTo(xOf(points.length - 1), PAD.top + cH);
+    ctx.lineTo(xOf(0), PAD.top + cH);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Line
+    ctx.beginPath();
+    points.forEach((p, i) => {
+        i === 0 ? ctx.moveTo(xOf(i), yOf(p.balance)) : ctx.lineTo(xOf(i), yOf(p.balance));
+    });
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = 'round';
+    ctx.setLineDash([]);
+    ctx.stroke();
+
+    // Dots + X labels
+    points.forEach((p, i) => {
+        const x = xOf(i);
+        const y = yOf(p.balance);
+
+        // Dot
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = lineColor;
+        ctx.fill();
+        ctx.strokeStyle = style.getPropertyValue('--color-surface').trim() || '#161618';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // X label (skip some if crowded)
+        const skip = points.length > 8 ? Math.ceil(points.length / 8) : 1;
+        if (i % skip === 0 || i === points.length - 1) {
+            ctx.fillStyle = colorFaint;
+            ctx.font = '11px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(p.label, x, H - PAD.bottom + 16);
+        }
+    });
+}
+
+function initChartPeriodBtns() {
+    document.getElementById('chart-period-group')?.querySelectorAll('[data-chart-period]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            chartPeriod = btn.dataset.chartPeriod;
+            document.querySelectorAll('[data-chart-period]').forEach(b => b.classList.remove('is-active'));
+            btn.classList.add('is-active');
+            renderBalanceChart();
+        });
+    });
+}
+
+/* ═══════════════════════════════════════════
+   INCOME vs EXPENSE CHART
+═══════════════════════════════════════════ */
+let ieChartPeriod = 'month';
+
+function getIEChartPoints() {
+    const now = new Date(TODAY);
+    const incomePoints = [];
+    const expensePoints = [];
+    const labels = [];
+
+    if (ieChartPeriod === 'week') {
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(now);
+            d.setDate(now.getDate() - i);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            const dayTxns = allTransactions.filter(t => t.date === key);
+            labels.push(d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' }));
+            incomePoints.push(dayTxns.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0));
+            expensePoints.push(dayTxns.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0));
+        }
+    } else if (ieChartPeriod === 'month') {
+        for (let i = 11; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const mTxns = allTransactions.filter(t => t.date && t.date.startsWith(key));
+            labels.push(d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' }));
+            incomePoints.push(mTxns.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0));
+            expensePoints.push(mTxns.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0));
+        }
+    } else {
+        for (let i = 4; i >= 0; i--) {
+            const y = now.getFullYear() - i;
+            const yTxns = allTransactions.filter(t => t.date && t.date.startsWith(String(y)));
+            labels.push(String(y));
+            incomePoints.push(yTxns.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0));
+            expensePoints.push(yTxns.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0));
+        }
+    }
+    return { labels, incomePoints, expensePoints };
+}
+
+function renderIEChart() {
+    const canvas = document.getElementById('ie-chart');
+    const emptyEl = document.getElementById('ie-chart-empty');
+    if (!canvas) return;
+    const { labels, incomePoints, expensePoints } = getIEChartPoints();
+    const hasData = incomePoints.some(v => v > 0) || expensePoints.some(v => v > 0);
+
+    if (!hasData) {
+        canvas.style.display = 'none';
+        emptyEl.style.display = 'block';
+        return;
+    }
+    canvas.style.display = 'block';
+    emptyEl.style.display = 'none';
+
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.parentElement.clientWidth - 48;
+    const H = 200;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const style = getComputedStyle(document.body);
+    const colorIncome = style.getPropertyValue('--color-income').trim() || '#4ade80';
+    const colorExpense = style.getPropertyValue('--color-expense').trim() || '#fb7185';
+    const colorBorder = style.getPropertyValue('--color-border').trim() || '#2b2b31';
+    const colorFaint = style.getPropertyValue('--color-text-faint').trim() || '#7b7b84';
+    const colorSurface = style.getPropertyValue('--color-surface').trim() || '#161618';
+
+    const PAD = { top: 16, right: 16, bottom: 40, left: 60 };
+    const cW = W - PAD.left - PAD.right;
+    const cH = H - PAD.top - PAD.bottom;
+    const n = labels.length;
+
+    const allVals = [...incomePoints, ...expensePoints];
+    const minV = 0;
+    const maxV = Math.max(...allVals, 1);
+    const range = maxV - minV;
+
+    function xOf(i) { return PAD.left + (i / (n - 1)) * cW; }
+    function yOf(v) { return PAD.top + (1 - (v - minV) / range) * cH; }
+
+    /* Grid lines */
+    ctx.strokeStyle = colorBorder;
+    ctx.lineWidth = 1;
+    for (let t = 0; t <= 4; t++) {
+        const v = minV + (range * t / 4);
+        const y = yOf(v);
+        ctx.beginPath();
+        ctx.moveTo(PAD.left, y);
+        ctx.lineTo(W - PAD.right, y);
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = colorFaint;
+        ctx.font = '11px Inter, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(fmt(v), PAD.left - 8, y + 4);
+    }
+
+    /* Draw one series: line + gradient fill + dots */
+    function drawSeries(points, color) {
+        /* Gradient fill */
+        const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top + cH);
+        grad.addColorStop(0, color + '28');
+        grad.addColorStop(1, color + '00');
+        ctx.beginPath();
+        points.forEach((v, i) => { i === 0 ? ctx.moveTo(xOf(i), yOf(v)) : ctx.lineTo(xOf(i), yOf(v)); });
+        ctx.lineTo(xOf(n - 1), PAD.top + cH);
+        ctx.lineTo(xOf(0), PAD.top + cH);
+        ctx.closePath();
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        /* Line */
+        ctx.beginPath();
+        points.forEach((v, i) => { i === 0 ? ctx.moveTo(xOf(i), yOf(v)) : ctx.lineTo(xOf(i), yOf(v)); });
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
+        ctx.setLineDash([]);
+        ctx.stroke();
+
+        /* Dots */
+        points.forEach((v, i) => {
+            ctx.beginPath();
+            ctx.arc(xOf(i), yOf(v), 4, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = colorSurface;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        });
+    }
+
+    drawSeries(expensePoints, colorExpense);
+    drawSeries(incomePoints, colorIncome);
+
+    /* X labels */
+    const skip = n > 8 ? Math.ceil(n / 8) : 1;
+    labels.forEach((lbl, i) => {
+        if (i % skip === 0 || i === n - 1) {
+            ctx.fillStyle = colorFaint;
+            ctx.font = '11px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(lbl, xOf(i), H - PAD.bottom + 16);
+        }
+    });
+}
+
+function initIEChartBtns() {
+    document.getElementById('ie-chart-period-group')?.querySelectorAll('[data-ie-period]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            ieChartPeriod = btn.dataset.iePeriod;
+            document.querySelectorAll('[data-ie-period]').forEach(b => b.classList.remove('is-active'));
+            btn.classList.add('is-active');
+            renderIEChart();
+        });
+    });
+}
+/* ═══════════════════════════════════════════
+       EXPORT LOGIC
+    ═══════════════════════════════════════════ */
+
+function toggleExportDropdown(e) {
+    e.stopPropagation();
+    document.getElementById('export-dropdown').classList.toggle('is-open');
+}
+
+document.addEventListener('click', () => {
+    document.getElementById('export-dropdown')?.classList.remove('is-open');
+});
+
+/* ── Shared: gather all data for current filter state ── */
+function gatherExportData() {
+    const periodTxns = filterByPeriod(allTransactions);
+    const income = periodTxns.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+    const expense = periodTxns.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+    const balance = income - expense;
+    const savingsRate = income > 0 ? Math.round(((income - expense) / income) * 100) : 0;
+
+    // Category breakdown (expenses)
+    const expCatMap = {};
+    periodTxns.filter(t => t.amount < 0).forEach(t => {
+        const c = t.category || 'Other';
+        expCatMap[c] = (expCatMap[c] || 0) + Math.abs(t.amount);
+    });
+    const expCategories = Object.entries(expCatMap).sort((a, b) => b[1] - a[1]);
+
+    // Category breakdown (income)
+    const incCatMap = {};
+    periodTxns.filter(t => t.amount > 0).forEach(t => {
+        const c = t.category || 'Other';
+        incCatMap[c] = (incCatMap[c] || 0) + t.amount;
+    });
+    const incCategories = Object.entries(incCatMap).sort((a, b) => b[1] - a[1]);
+
+    // Monthly summary (last 6 months, all-time)
+    const monthMap = {};
+    allTransactions.forEach(t => {
+        const k = t.date ? t.date.slice(0, 7) : null;
+        if (!k) return;
+        if (!monthMap[k]) monthMap[k] = { income: 0, expense: 0 };
+        if (t.amount > 0) monthMap[k].income += t.amount;
+        else monthMap[k].expense += Math.abs(t.amount);
+    });
+    const sortedMonths = Object.keys(monthMap).sort().slice(-6).reverse();
+
+    // Recurring templates
+    const recurring = JSON.parse(localStorage.getItem('recurringTemplates')) || [];
+
+    // Budgets
+    const budgets = JSON.parse(localStorage.getItem('budgets')) || [];
+
+    // BOT chart points (use current chartPeriod)
+    const botPoints = getChartPoints();
+
+    // IE chart points (use current ieChartPeriod)
+    const iePoints = getIEChartPoints();
+
+    return {
+        label: getPeriodLabel(),
+        subtitle: (() => {
+            const { start, end } = getPeriodRange();
+            if (period === 'day') return start.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            if (period === 'week') return `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+            if (period === 'month') return start.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+            return String(start.getFullYear());
+        })(),
+        income, expense, balance, savingsRate,
+        txCount: periodTxns.length,
+        transactions: [...periodTxns].sort((a, b) => (b.date || '').localeCompare(a.date || '')),
+        expCategories, incCategories,
+        sortedMonths, monthMap,
+        recurring, budgets,
+        botPoints, iePoints,
+        chartPeriod, ieChartPeriod
+    };
+}
+
+/* ════════════════════════
+   XLSX EXPORT
+════════════════════════ */
+function exportXLSX() {
+    if (typeof XLSX === 'undefined') {
+        alert('SheetJS library not loaded. Check your internet connection.');
+        return;
+    }
+    document.getElementById('export-dropdown').classList.remove('is-open');
+    const d = gatherExportData();
+    const wb = XLSX.utils.book_new();
+
+    // ── Sheet 1: Summary ──
+    const summaryRows = [
+        ['XpenseFlow — Financial Report'],
+        [`Period: ${d.label} (${d.subtitle})`],
+        [`Generated: ${new Date().toLocaleString()}`],
+        [],
+        ['SUMMARY', ''],
+        ['Total Income', d.income],
+        ['Total Expenses', d.expense],
+        ['Net Balance', d.balance],
+        ['Savings Rate', `${d.savingsRate}%`],
+        ['Transaction Count', d.txCount],
+    ];
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+    wsSummary['!cols'] = [{ wch: 28 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+    // ── Sheet 2: Transactions (period-filtered) ──
+    const txHeader = ['Date', 'Name', 'Category', 'Type', 'Amount'];
+    const txRows = d.transactions.map(t => [
+        t.date || '',
+        t.text || '',
+        t.category || '',
+        t.amount > 0 ? 'Income' : 'Expense',
+        Math.abs(t.amount)
+    ]);
+    const wsTx = XLSX.utils.aoa_to_sheet([txHeader, ...txRows]);
+    wsTx['!cols'] = [{ wch: 12 }, { wch: 26 }, { wch: 16 }, { wch: 10 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, wsTx, 'Transactions');
+
+    // ── Sheet 3: Category Breakdown ──
+    const catRows = [
+        ['EXPENSE CATEGORIES', ''],
+        ['Category', 'Amount'],
+        ...d.expCategories.map(([c, a]) => [c, a]),
+        [],
+        ['INCOME SOURCES', ''],
+        ['Category', 'Amount'],
+        ...d.incCategories.map(([c, a]) => [c, a])
+    ];
+    const wsCat = XLSX.utils.aoa_to_sheet(catRows);
+    wsCat['!cols'] = [{ wch: 22 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, wsCat, 'Categories');
+
+    // ── Sheet 4: Monthly Summary (all-time, last 6 months) ──
+    const monthHeader = ['Month', 'Income', 'Expenses', 'Net Balance'];
+    const monthRows = d.sortedMonths.map(k => {
+        const { income: mi, expense: me } = d.monthMap[k];
+        const [y, m] = k.split('-').map(Number);
+        const label = new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+        return [label, mi, me, mi - me];
+    });
+    const wsMonths = XLSX.utils.aoa_to_sheet([monthHeader, ...monthRows]);
+    wsMonths['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, wsMonths, 'Monthly Summary');
+
+    // ── Sheet 5: Balance Over Time chart data ──
+    const botHeader = [`Balance Over Time (${d.chartPeriod})`, ''];
+    const botRows = [botHeader, ['Period', 'Cumulative Balance'], ...d.botPoints.map(p => [p.label, p.balance])];
+    const wsBot = XLSX.utils.aoa_to_sheet(botRows);
+    wsBot['!cols'] = [{ wch: 18 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, wsBot, 'Balance Over Time');
+
+    // ── Sheet 6: Income vs Expenses chart data ──
+    const ieHeader = [`Income vs Expenses (${d.ieChartPeriod})`, '', ''];
+    const ieRows = [
+        ieHeader,
+        ['Period', 'Income', 'Expenses'],
+        ...d.iePoints.labels.map((lbl, i) => [lbl, d.iePoints.incomePoints[i], d.iePoints.expensePoints[i]])
+    ];
+    const wsIE = XLSX.utils.aoa_to_sheet(ieRows);
+    wsIE['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, wsIE, 'Income vs Expenses');
+
+    // ── Sheet 7: Recurring Templates ──
+    if (d.recurring.length > 0) {
+        const recHeader = ['Name', 'Type', 'Amount', 'Frequency', 'Category', 'Next Date'];
+        const recRows = d.recurring.map(r => [r.name, r.type, r.amount, r.frequency, r.category, r.nextDate]);
+        const wsRec = XLSX.utils.aoa_to_sheet([recHeader, ...recRows]);
+        wsRec['!cols'] = [{ wch: 22 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 14 }];
+        XLSX.utils.book_append_sheet(wb, wsRec, 'Recurring');
+    }
+
+    // ── Sheet 8: Budgets ──
+    if (d.budgets.length > 0) {
+        const budHeader = ['Category', 'Limit', 'Period'];
+        const budRows = d.budgets.map(b => [b.category === 'All' ? 'All Expenses' : b.category, b.limit, b.period]);
+        const wsBud = XLSX.utils.aoa_to_sheet([budHeader, ...budRows]);
+        wsBud['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 12 }];
+        XLSX.utils.book_append_sheet(wb, wsBud, 'Budgets');
+    }
+
+    const filename = `XpenseFlow_${d.label.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, filename);
+}
+
+/* ════════════════════════
+   DOCX EXPORT
+════════════════════════ */
+function exportDOCX() {
+    if (typeof docx === 'undefined') {
+        alert('docx library not loaded. Check your internet connection.');
+        return;
+    }
+    document.getElementById('export-dropdown').classList.remove('is-open');
+    const d = gatherExportData();
+
+    const {
+        Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+        HeadingLevel, AlignmentType, WidthType, BorderStyle, ShadingType,
+        PageBreak
+    } = docx;
+
+    const GRAY = 'F3F4F6';
+    const GREEN = 'D1FAE5';
+    const RED = 'FFE4E6';
+    const DARK = '111827';
+
+    function h1(text) {
+        return new Paragraph({
+            children: [new TextRun({ text, bold: true, size: 36, color: DARK })],
+            spacing: { after: 80 }
+        });
+    }
+
+    function h2(text) {
+        return new Paragraph({
+            children: [new TextRun({ text, bold: true, size: 26, color: '374151' })],
+            spacing: { before: 280, after: 100 }
+        });
+    }
+
+    function p(text, opts = {}) {
+        return new Paragraph({
+            children: [new TextRun({ text, size: 20, color: '6B7280', ...opts })],
+            spacing: { after: 60 }
+        });
+    }
+
+    function divider() {
+        return new Paragraph({
+            border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: 'E5E7EB' } },
+            spacing: { before: 120, after: 120 }
+        });
+    }
+
+    function metaRow(label, value, color) {
+        return new TableRow({
+            children: [
+                new TableCell({
+                    children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 20, color: '374151' })] })],
+                    width: { size: 40, type: WidthType.PERCENTAGE },
+                    shading: { fill: GRAY, type: ShadingType.CLEAR, color: 'auto' },
+                }),
+                new TableCell({
+                    children: [new Paragraph({ children: [new TextRun({ text: value, size: 20, bold: true, color: color || DARK })] })],
+                    width: { size: 60, type: WidthType.PERCENTAGE },
+                }),
+            ]
+        });
+    }
+
+    function dataTable(headers, rows) {
+        return new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+                new TableRow({
+                    children: headers.map(h => new TableCell({
+                        children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 18, color: '6B7280' })] })],
+                        shading: { fill: 'F9FAFB', type: ShadingType.CLEAR }
+                    }))
+                }),
+                ...rows.map(row => new TableRow({
+                    children: row.map((cell, ci) => new TableCell({
+                        children: [new Paragraph({ children: [new TextRun({ text: String(cell), size: 18, color: '374151' })] })],
+                    }))
+                }))
+            ]
+        });
+    }
+
+    const children = [
+        // ── Cover ──
+        h1('XpenseFlow — Financial Report'),
+        p(`Period: ${d.label}  ·  ${d.subtitle}`, { bold: true, color: '374151' }),
+        p(`Generated: ${new Date().toLocaleString()}  ·  ${d.txCount} transactions`),
+        divider(),
+
+        // ── Summary ──
+        h2('Summary'),
+        new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+                metaRow('Total Income', fmt(d.income), '16a34a'),
+                metaRow('Total Expenses', fmt(d.expense), 'e11d48'),
+                metaRow('Net Balance', fmt(d.balance), d.balance >= 0 ? '16a34a' : 'e11d48'),
+                metaRow('Savings Rate', `${d.savingsRate}%`, d.savingsRate >= 20 ? '16a34a' : '374151'),
+                metaRow('Transaction Count', String(d.txCount)),
+            ]
+        }),
+        divider(),
+
+        // ── Expense Categories ──
+        h2('Top Expense Categories'),
+        ...(d.expCategories.length === 0
+            ? [p('No expenses in this period.')]
+            : [dataTable(['Category', 'Amount', '% of Total'],
+                d.expCategories.map(([c, a]) => [c, fmt(a), d.expense > 0 ? `${Math.round((a / d.expense) * 100)}%` : '—'])
+            )]
+        ),
+        divider(),
+
+        // ── Income Sources ──
+        h2('Top Income Sources'),
+        ...(d.incCategories.length === 0
+            ? [p('No income in this period.')]
+            : [dataTable(['Category', 'Amount', '% of Total'],
+                d.incCategories.map(([c, a]) => [c, fmt(a), d.income > 0 ? `${Math.round((a / d.income) * 100)}%` : '—'])
+            )]
+        ),
+        divider(),
+
+        // ── Transactions ──
+        h2(`Transactions (${d.label})`),
+        ...(d.transactions.length === 0
+            ? [p('No transactions in this period.')]
+            : [dataTable(
+                ['Date', 'Name', 'Category', 'Type', 'Amount'],
+                d.transactions.map(t => [
+                    t.date || '',
+                    t.text || '',
+                    t.category || '',
+                    t.amount > 0 ? 'Income' : 'Expense',
+                    `${t.amount > 0 ? '+' : '-'}${fmt(Math.abs(t.amount))}`
+                ])
+            )]
+        ),
+        divider(),
+
+        // ── Monthly Summary ──
+        h2('Monthly Summary (All Time · Last 6 Months)'),
+        ...(d.sortedMonths.length === 0
+            ? [p('No dated transactions found.')]
+            : [dataTable(
+                ['Month', 'Income', 'Expenses', 'Net Balance'],
+                d.sortedMonths.map(k => {
+                    const { income: mi, expense: me } = d.monthMap[k];
+                    const [y, m] = k.split('-').map(Number);
+                    const lbl = new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+                    return [lbl, fmt(mi), fmt(me), fmt(mi - me)];
+                })
+            )]
+        ),
+        divider(),
+
+        // ── Balance Over Time ──
+        h2(`Balance Over Time (${d.chartPeriod} view)`),
+        dataTable(
+            ['Period', 'Cumulative Balance'],
+            d.botPoints.map(p => [p.label, fmt(p.balance)])
+        ),
+        divider(),
+
+        // ── Income vs Expenses ──
+        h2(`Income vs Expenses (${d.ieChartPeriod} view)`),
+        dataTable(
+            ['Period', 'Income', 'Expenses'],
+            d.iePoints.labels.map((lbl, i) => [lbl, fmt(d.iePoints.incomePoints[i]), fmt(d.iePoints.expensePoints[i])])
+        ),
+        divider(),
+    ];
+
+    // ── Recurring ──
+    if (d.recurring.length > 0) {
+        children.push(h2('Recurring Transactions'));
+        children.push(dataTable(
+            ['Name', 'Type', 'Amount', 'Frequency', 'Category', 'Next Date'],
+            d.recurring.map(r => [r.name, r.type, fmt(r.amount), r.frequency, r.category, r.nextDate])
+        ));
+        children.push(divider());
+    }
+
+    // ── Budgets ──
+    if (d.budgets.length > 0) {
+        children.push(h2('Budgets'));
+        children.push(dataTable(
+            ['Category', 'Limit', 'Period'],
+            d.budgets.map(b => [b.category === 'All' ? 'All Expenses' : b.category, fmt(b.limit), b.period])
+        ));
+    }
+
+    const doc = new Document({
+        sections: [{
+            properties: {
+                page: { margin: { top: 720, right: 900, bottom: 720, left: 900 } }
+            },
+            children
+        }]
+    });
+
+    Packer.toBlob(doc).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `XpenseFlow_${d.label.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.docx`;
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+}
+
+renderAll();

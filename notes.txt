@@ -1,6 +1,6 @@
 koulkoudakis / expense-income-tracker
 
-1. Export
+1. Export                               ✔
 2. Savings Goals
 3. User Authentication and DB
 4. Multi Currency and conversion
