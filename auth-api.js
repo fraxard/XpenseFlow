@@ -1,9 +1,10 @@
 /* ═══════════════════════════════════════════════════════════
    auth-api.js  —  XpenseFlow frontend auth client
+   Add <script src="auth-api.js"></script> BEFORE db-api.js
+   in both index.html and reports.html
 ═══════════════════════════════════════════════════════════ */
 
-// NEW — auto-detects: if accessed via LAN IP, hits that same IP's backend:
-const API_BASE = `http://${window.location.hostname}:3001/api`;
+const API_BASE = 'http://localhost:3001/api';
 
 /* ── Token helpers ── */
 function getToken()         { return localStorage.getItem('xf_token'); }
@@ -37,6 +38,8 @@ async function authRegister(email, password, name) {
     });
     setToken(data.token);
     setAuthUser(data.user);
+    // Clear the import flag so the new account gets guest data pushed
+    sessionStorage.removeItem('xf_imported');
     return data.user;
 }
 
@@ -47,6 +50,8 @@ async function authLogin(email, password) {
     });
     setToken(data.token);
     setAuthUser(data.user);
+    // Clear the import flag so loadAll runs fresh
+    sessionStorage.removeItem('xf_imported');
     return data.user;
 }
 
@@ -59,7 +64,20 @@ async function authMe() {
 function authLogout() {
     clearToken();
     clearAuthUser();
+    sessionStorage.removeItem('xf_imported');
+    // On logout, wipe the localStorage cache so the next guest session starts fresh
+    // (keep currency and theme prefs)
+    const currency = localStorage.getItem('currency');
+    const theme    = localStorage.getItem('theme');
+    localStorage.removeItem('transactions');
+    localStorage.removeItem('recurringTemplates');
+    localStorage.removeItem('budgets');
+    localStorage.removeItem('customCategories');
+    if (currency) localStorage.setItem('currency', currency);
+    if (theme)    localStorage.setItem('theme', theme);
     renderAuthButton();
+    // Reload page to reinitialize the app in guest mode
+    window.location.reload();
 }
 
 /* ════════════════════════════════════════════════════════
@@ -72,7 +90,6 @@ function renderAuthButton() {
     const user = getAuthUser();
 
     if (user) {
-        // Logged in → avatar with initial + dropdown
         const initial = (user.name || user.email)[0].toUpperCase();
         container.innerHTML = `
             <div class="auth-avatar-wrap" id="auth-avatar-wrap">
@@ -113,7 +130,6 @@ function renderAuthButton() {
         }, { once: false });
 
     } else {
-        // Logged out → "Sign in" button
         container.innerHTML = `
             <button class="auth-signin-btn" id="auth-signin-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -140,14 +156,11 @@ function buildAuthModal() {
     overlay.className = 'auth-modal-overlay';
     overlay.innerHTML = `
         <div class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
-
-            <!-- Tab bar -->
             <div class="auth-tabs">
                 <button class="auth-tab is-active" data-tab="login">Sign in</button>
                 <button class="auth-tab" data-tab="register">Create account</button>
             </div>
 
-            <!-- LOGIN panel -->
             <div class="auth-panel" id="auth-panel-login">
                 <div class="form-control">
                     <label for="auth-login-email">Email</label>
@@ -163,7 +176,6 @@ function buildAuthModal() {
                 <button class="btn auth-submit-btn" id="auth-login-btn">Sign in</button>
             </div>
 
-            <!-- REGISTER panel -->
             <div class="auth-panel" id="auth-panel-register" style="display:none">
                 <div class="form-control">
                     <label for="auth-reg-name">Full name</label>
@@ -184,14 +196,12 @@ function buildAuthModal() {
                 <button class="btn auth-submit-btn" id="auth-register-btn">Create account</button>
             </div>
 
-            <!-- Close -->
             <button class="auth-modal-close" id="auth-modal-close" aria-label="Close">&times;</button>
         </div>
     `;
 
     document.body.appendChild(overlay);
 
-    /* Tab switching */
     overlay.querySelectorAll('.auth-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             overlay.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('is-active'));
@@ -203,14 +213,12 @@ function buildAuthModal() {
         });
     });
 
-    /* Close */
     overlay.addEventListener('click', e => { if (e.target === overlay) closeAuthModal(); });
     document.getElementById('auth-modal-close').addEventListener('click', closeAuthModal);
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && overlay.classList.contains('is-open')) closeAuthModal();
     });
 
-    /* Clear errors on input */
     ['auth-login-email','auth-login-password','auth-reg-name','auth-reg-email','auth-reg-password']
         .forEach(id => document.getElementById(id)?.addEventListener('input', clearAuthModalErrors));
 
@@ -220,8 +228,7 @@ function buildAuthModal() {
         const email    = document.getElementById('auth-login-email').value.trim();
         const password = document.getElementById('auth-login-password').value;
         let valid = true;
-
-        if (!email) { showFieldErr('auth-login-email', 'auth-login-email-err', 'Enter your email'); valid = false; }
+        if (!email)    { showFieldErr('auth-login-email',    'auth-login-email-err',    'Enter your email');    valid = false; }
         if (!password) { showFieldErr('auth-login-password', 'auth-login-password-err', 'Enter your password'); valid = false; }
         if (!valid) return;
 
@@ -232,6 +239,14 @@ function buildAuthModal() {
             closeAuthModal();
             renderAuthButton();
             showAuthToast(`Welcome back, ${user.name}!`);
+            // Sync data: import guest data or load from server
+            if (window.DB) {
+                await window.DB.importFromLocalStorage();
+                // Re-initialize the page with fresh data
+                if (typeof init === 'function') init();
+                if (typeof renderRecurringList === 'function') renderRecurringList();
+                if (typeof renderBudgetList    === 'function') renderBudgetList();
+            }
         } catch (err) {
             document.getElementById('auth-login-global-err').textContent = err.message;
         } finally {
@@ -246,10 +261,9 @@ function buildAuthModal() {
         const email    = document.getElementById('auth-reg-email').value.trim();
         const password = document.getElementById('auth-reg-password').value;
         let valid = true;
-
-        if (name.length < 2)  { showFieldErr('auth-reg-name',     'auth-reg-name-err',     'Enter your name (min 2 chars)'); valid = false; }
-        if (!email)            { showFieldErr('auth-reg-email',    'auth-reg-email-err',    'Enter your email'); valid = false; }
-        if (password.length < 8) { showFieldErr('auth-reg-password', 'auth-reg-password-err', 'Password must be at least 8 characters'); valid = false; }
+        if (name.length < 2)      { showFieldErr('auth-reg-name',     'auth-reg-name-err',     'Enter your name (min 2 chars)'); valid = false; }
+        if (!email)               { showFieldErr('auth-reg-email',    'auth-reg-email-err',    'Enter your email'); valid = false; }
+        if (password.length < 8)  { showFieldErr('auth-reg-password', 'auth-reg-password-err', 'Password must be at least 8 characters'); valid = false; }
         if (!valid) return;
 
         const btn = document.getElementById('auth-register-btn');
@@ -259,6 +273,12 @@ function buildAuthModal() {
             closeAuthModal();
             renderAuthButton();
             showAuthToast(`Account created! Welcome, ${user.name} 🎉`);
+            if (window.DB) {
+                await window.DB.importFromLocalStorage();
+                if (typeof init === 'function') init();
+                if (typeof renderRecurringList === 'function') renderRecurringList();
+                if (typeof renderBudgetList    === 'function') renderBudgetList();
+            }
         } catch (err) {
             document.getElementById('auth-reg-global-err').textContent = err.message;
         } finally {
@@ -266,7 +286,6 @@ function buildAuthModal() {
         }
     });
 
-    /* Enter key on last field triggers submit */
     document.getElementById('auth-login-password').addEventListener('keydown', e => {
         if (e.key === 'Enter') document.getElementById('auth-login-btn').click();
     });
@@ -278,19 +297,14 @@ function buildAuthModal() {
 function openAuthModal(startTab = 'login') {
     buildAuthModal();
     clearAuthModalErrors();
-    // Switch to the right tab
     document.querySelectorAll('.auth-tab').forEach(t => {
-        const active = t.dataset.tab === startTab;
-        t.classList.toggle('is-active', active);
+        t.classList.toggle('is-active', t.dataset.tab === startTab);
     });
     document.getElementById('auth-panel-login').style.display    = startTab === 'login'    ? '' : 'none';
     document.getElementById('auth-panel-register').style.display = startTab === 'register' ? '' : 'none';
-
     document.getElementById('auth-modal-overlay').classList.add('is-open');
-    // Focus first input
     setTimeout(() => {
-        const first = document.getElementById(startTab === 'login' ? 'auth-login-email' : 'auth-reg-name');
-        first?.focus();
+        document.getElementById(startTab === 'login' ? 'auth-login-email' : 'auth-reg-name')?.focus();
     }, 50);
 }
 
@@ -298,7 +312,6 @@ function closeAuthModal() {
     document.getElementById('auth-modal-overlay')?.classList.remove('is-open');
 }
 
-/* ── Small helpers ── */
 function showFieldErr(inputId, errId, msg) {
     document.getElementById(inputId)?.classList.add('invalid');
     const el = document.getElementById(errId);
@@ -314,12 +327,11 @@ function clearAuthModalErrors() {
 }
 
 function setAuthBtnLoading(btn, loading, label) {
-    btn.disabled = loading;
-    btn.textContent = label;
+    btn.disabled     = loading;
+    btn.textContent  = label;
     btn.style.opacity = loading ? '0.7' : '1';
 }
 
-/* ── Toast notification ── */
 function showAuthToast(message) {
     let toast = document.getElementById('auth-toast');
     if (!toast) {
@@ -345,19 +357,21 @@ function showAuthToast(message) {
 }
 
 /* ════════════════════════════════════════════════════════
-   BOOT  —  runs on every page load
+   BOOT
 ════════════════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', async () => {
     renderAuthButton();
 
-    // Silently re-validate the stored token on load
     const token = getToken();
     if (token) {
         try {
-            await authMe();       // refreshes user data from server
-            renderAuthButton();   // re-render with fresh name/email
+            await authMe();
+            renderAuthButton();
+            // Load fresh data from server into localStorage cache
+            if (window.DB) {
+                await window.DB.loadAll();
+            }
         } catch {
-            // Token expired / invalid — clear it
             clearToken();
             clearAuthUser();
             renderAuthButton();
