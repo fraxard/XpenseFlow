@@ -1,7 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
    auth-api.js  —  XpenseFlow frontend auth client
-   Add <script src="auth-api.js"></script> BEFORE script.js
-   in both index.html and reports.html
 ═══════════════════════════════════════════════════════════ */
 
 // NEW — auto-detects: if accessed via LAN IP, hits that same IP's backend:

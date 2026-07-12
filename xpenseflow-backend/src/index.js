@@ -26,7 +26,7 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
 }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '8mb' }));
 
 
 /* ── Health check ── */
@@ -62,6 +62,10 @@ app.get('/api/health', async (_req, res) => {
 
 /* ── Routes ── */
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/transactions', require('./routes/transactions'));
+app.use('/api/recurring', require('./routes/recurring'));
+app.use('/api/budgets', require('./routes/budgets'));
+app.use('/api/categories', require('./routes/categories'));
 
 /* ── 404 fallback ── */
 app.use((_req, res) => res.status(404).json({ error: 'Route not found.' }));
@@ -73,7 +77,7 @@ app.use((err, _req, res, _next) => {
 });
 
 /* ── Start ── */
-app.listen(PORT, () => {
+app.listen(PORT,'0.0.0.0', () => {
     console.log(`✅  XpenseFlow API running on http://localhost:${PORT}`);
     console.log(`    Health: http://localhost:${PORT}/api/health`);
 });
