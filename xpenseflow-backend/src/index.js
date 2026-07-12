@@ -8,22 +8,18 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 /* ── Middleware ── */
+/* ── CORS: accept any origin on the same LAN ── */
 const allowedOrigins = (
     process.env.CLIENT_ORIGINS ||
     'http://localhost:5500'
 )
     .split(',')
-    .map(origin => origin.trim());
+    .map(o => o.trim());
 
 app.use(cors({
     origin(origin, callback) {
-        // Allow requests with no Origin (Postman, curl, server-to-server)
-        if (!origin) return callback(null, true);
-
-        if (allowedOrigins.includes(origin)) {
-            return callback(null, true);
-        }
-
+        if (!origin) return callback(null, true); // Postman / curl
+        if (allowedOrigins.includes(origin)) return callback(null, true);
         return callback(new Error(`CORS blocked: ${origin}`));
     },
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],

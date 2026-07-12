@@ -4,7 +4,8 @@
    in both index.html and reports.html
 ═══════════════════════════════════════════════════════════ */
 
-const API_BASE = 'http://localhost:3001/api';
+// NEW — auto-detects: if accessed via LAN IP, hits that same IP's backend:
+const API_BASE = `http://${window.location.hostname}:3001/api`;
 
 /* ── Token helpers ── */
 function getToken()         { return localStorage.getItem('xf_token'); }
