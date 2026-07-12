@@ -54,7 +54,7 @@
       <!-- Filled by JS -->
     </main>
 
-    <footer class="app-footer">by fraxard, v0.68.3</footer>
+    <footer class="app-footer">by fraxard, v0.7.0</footer>
   </div>
 
   <script>
@@ -498,23 +498,8 @@
 
 <!-- Smart Insights placeholder -->
 <div class="report-card">
-  <p class="report-card-title">Smart Insights <span style="font-size:11px;font-weight:500;color:var(--color-text-faint);margin-left:6px;">Coming soon</span></p>
-  <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
-    ${[
-          ['', 'Spending breakdown', 'See where your money goes each month'],
-          ['', 'Budget tips', 'Get suggestions based on your habits'],
-          ['', 'Trend analysis', 'Spot patterns across weeks and months'],
-          ['', 'Savings goals', 'Track progress toward your targets'],
-        ].map(([emoji, title, sub]) => `
-      <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:var(--radius-md);background:var(--color-surface-muted);border:1px solid var(--color-border);opacity:0.55;">
-        <span style="font-size:18px;line-height:1;flex-shrink:0;margin-top:1px;">${emoji}</span>
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--color-text);margin-bottom:2px;">${title}</div>
-          <div style="font-size:11px;color:var(--color-text-faint);">${sub}</div>
-        </div>
-      </div>
-    `).join('')}
-  </div>
+  <p class="report-card-title">Smart Insights</p>
+  <div id="insights-root"></div>
 </div>
 
           <!-- Balance over time chart placeholder -->
@@ -591,6 +576,8 @@
       initIEChartBtns();
       renderIEChart();
       renderHeatmap();
+      renderHeatmap();
+      renderSmartInsights();
     }
 
     function renderHeatmap() {
@@ -798,6 +785,226 @@
       });
     }
 
+
+    const INSIGHT_ICONS = {
+      '📈': '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+      '📉': '<path d="M3 7l6 6 4-4 8 8"/><path d="M15 17h6v-6"/>',
+      '🛍️': '<path d="M6 8h12l1 12H5L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+      '💡': '<path d="M12 2a7 7 0 0 1 5 11.9V16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-2.1A7 7 0 0 1 12 2z"/><path d="M9 21h6"/><path d="M10 17v1"/><path d="M14 17v1"/>',
+      '🎯': '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>',
+      '⚠️': '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+      '📅': '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+      '📆': '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01"/>',
+      '💰': '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+      '📭': '<path d="M22 12h-6l-2 3H10l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+    };
+
+    function renderSmartInsights() {
+      const root = document.getElementById('insights-root');
+      if (!root) return;
+
+      const insights = [];
+
+      // ── Helpers ──
+      function monthKeyOf(dateStr) {
+        if (!dateStr) return null;
+        return dateStr.slice(0, 7); // "YYYY-MM"
+      }
+
+      const now = new Date(TODAY);
+      const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const prevMonthKey = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`;
+
+      const thisMonthTxns = allTransactions.filter(t => monthKeyOf(t.date) === thisMonthKey);
+      const prevMonthTxns = allTransactions.filter(t => monthKeyOf(t.date) === prevMonthKey);
+
+      const thisExpenses = thisMonthTxns.filter(t => t.amount < 0);
+      const prevExpenses = prevMonthTxns.filter(t => t.amount < 0);
+      const thisIncome = thisMonthTxns.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+      const thisTotal = thisExpenses.reduce((s, t) => s + Math.abs(t.amount), 0);
+      const prevTotal = prevExpenses.reduce((s, t) => s + Math.abs(t.amount), 0);
+
+      // ── 1. Overall spending change vs last month ──
+      if (prevTotal > 0 && thisTotal > 0) {
+        const pct = Math.round(((thisTotal - prevTotal) / prevTotal) * 100);
+        if (Math.abs(pct) >= 5) {
+          const dir = pct > 0 ? 'more' : 'less';
+          const good = pct < 0;
+          insights.push({
+            icon: pct > 0 ? '📈' : '📉',
+            text: `You spent <strong>${Math.abs(pct)}% ${dir}</strong> overall than last month.`,
+            good
+          });
+        }
+      }
+
+      // ── 2. Category-level change vs last month ──
+      const thisCatMap = {};
+      thisExpenses.forEach(t => {
+        const c = t.category || 'Other';
+        thisCatMap[c] = (thisCatMap[c] || 0) + Math.abs(t.amount);
+      });
+      const prevCatMap = {};
+      prevExpenses.forEach(t => {
+        const c = t.category || 'Other';
+        prevCatMap[c] = (prevCatMap[c] || 0) + Math.abs(t.amount);
+      });
+
+      // Find biggest category increase
+      let biggestCatInsight = null;
+      let biggestCatPct = 0;
+      Object.entries(thisCatMap).forEach(([cat, amt]) => {
+        const prev = prevCatMap[cat] || 0;
+        if (prev > 0) {
+          const pct = Math.round(((amt - prev) / prev) * 100);
+          if (Math.abs(pct) > Math.abs(biggestCatPct) && Math.abs(pct) >= 10) {
+            biggestCatPct = pct;
+            biggestCatInsight = { cat, pct, amt, prev };
+          }
+        }
+      });
+      if (biggestCatInsight) {
+        const { cat, pct } = biggestCatInsight;
+        const dir = pct > 0 ? 'more' : 'less';
+        const good = pct < 0;
+        insights.push({
+          icon: '🛍️',
+          text: `You spent <strong>${Math.abs(pct)}% ${dir} on ${cat}</strong> than last month.`,
+          good
+        });
+      }
+
+      // ── 3. Top category share of total expenses ──
+      if (thisTotal > 0 && Object.keys(thisCatMap).length > 0) {
+        const [topCat, topAmt] = Object.entries(thisCatMap).sort((a, b) => b[1] - a[1])[0];
+        const share = Math.round((topAmt / thisTotal) * 100);
+        if (share >= 30) {
+          insights.push({
+            icon: '💡',
+            text: `<strong>${topCat}</strong> accounts for <strong>${share}%</strong> of your expenses this month.`,
+            good: null
+          });
+        }
+      }
+
+      // ── 4. Savings rate this month ──
+      if (thisIncome > 0) {
+        const rate = Math.round(((thisIncome - thisTotal) / thisIncome) * 100);
+        const prevIncome = prevMonthTxns.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+        const prevRate = prevIncome > 0 ? Math.round(((prevIncome - prevTotal) / prevIncome) * 100) : null;
+
+        if (prevRate !== null && Math.abs(rate - prevRate) >= 3) {
+          const improved = rate > prevRate;
+          insights.push({
+            icon: improved ? '🎯' : '⚠️',
+            text: improved
+              ? `Your savings rate <strong>improved by ${rate - prevRate}%</strong> vs last month (now ${rate}%).`
+              : `Your savings rate <strong>dropped by ${prevRate - rate}%</strong> vs last month (now ${rate}%).`,
+            good: improved
+          });
+        } else if (rate > 0) {
+          insights.push({
+            icon: '🎯',
+            text: `You're saving <strong>${rate}%</strong> of your income this month.`,
+            good: rate >= 20
+          });
+        }
+      }
+
+      // ── 5. Average daily spending this month ──
+      if (thisTotal > 0) {
+        const daysElapsed = now.getDate(); // days into this month
+        const avgDaily = thisTotal / daysElapsed;
+        insights.push({
+          icon: '📅',
+          text: `Your average daily spending this month is <strong>${fmt(Math.round(avgDaily))}</strong>.`,
+          good: null
+        });
+      }
+
+      // ── 6. Highest spending day of week (all time) ──
+      const dayTotals = [0, 0, 0, 0, 0, 0, 0]; // Sun=0 … Sat=6
+      allTransactions.filter(t => t.amount < 0 && t.date).forEach(t => {
+        const [y, m, d] = t.date.split('-').map(Number);
+        const dow = new Date(y, m - 1, d).getDay();
+        dayTotals[dow] += Math.abs(t.amount);
+      });
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const maxDayIdx = dayTotals.indexOf(Math.max(...dayTotals));
+      if (dayTotals[maxDayIdx] > 0) {
+        insights.push({
+          icon: '📆',
+          text: `<strong>${dayNames[maxDayIdx]}</strong> is your highest spending day historically.`,
+          good: null
+        });
+      }
+
+      // ── 7. Potential savings from top non-essential category ──
+      const nonEssential = ['Entertainment', 'Shopping', 'Dining', 'Subscriptions', 'Other'];
+      let topNonEssAmt = 0, topNonEssCat = null;
+      nonEssential.forEach(cat => {
+        const amt = thisCatMap[cat] || 0;
+        if (amt > topNonEssAmt) { topNonEssAmt = amt; topNonEssCat = cat; }
+      });
+      if (topNonEssCat && topNonEssAmt > 0) {
+        const saving = Math.round(topNonEssAmt * 0.25);
+        if (saving > 0) {
+          insights.push({
+            icon: '💰',
+            text: `Cutting <strong>${topNonEssCat}</strong> by 25% could save you <strong>${fmt(saving)}/month</strong>.`,
+            good: null
+          });
+        }
+      }
+
+      // ── 8. No transactions warning ──
+      if (thisMonthTxns.length === 0) {
+        insights.push({
+          icon: '📭',
+          text: `No transactions recorded for this month yet.`,
+          good: null
+        });
+      }
+
+      // ── Render ──
+      if (insights.length === 0) {
+        root.innerHTML = `<div class="section-empty">Add more transactions to unlock insights.</div>`;
+        return;
+      }
+
+      root.innerHTML = insights.map(ins => {
+        const iconPath = INSIGHT_ICONS[ins.icon] || INSIGHT_ICONS['💡'];
+        const borderColor = ins.good === true
+          ? 'var(--color-income)'
+          : ins.good === false
+            ? 'var(--color-expense)'
+            : 'var(--color-border)';
+        const iconColor = ins.good === true
+          ? 'var(--color-income)'
+          : ins.good === false
+            ? 'var(--color-expense)'
+            : 'var(--color-text-faint)';
+
+        return `
+    <div style="
+      display:flex;align-items:flex-start;gap:12px;
+      padding:11px 13px;margin-bottom:8px;
+      border-radius:var(--radius-md);
+      background:var(--color-surface-muted);
+      border:1px solid var(--color-border);
+      border-left:3px solid ${borderColor};
+    ">
+      <svg viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="1.8"
+        stroke-linecap="round" stroke-linejoin="round"
+        style="width:16px;height:16px;flex-shrink:0;margin-top:2px;">
+        ${iconPath}
+      </svg>
+      <span style="font-size:12.5px;line-height:1.55;color:var(--color-text-muted);">${ins.text}</span>
+    </div>
+  `;
+      }).join('');
+    }
 
 
     /* ═══════════════════════════════════════════

@@ -65,24 +65,23 @@ Goal: 70%
                         ✔ Monthly
                         toggle
                         Daily | Weekly | Monthly
-Also allow Income & Expenses Balance toggle.
+                        Also allow Income & Expenses Balance toggle.
 
-+ Monthly Summary chart
-
-
-
-8. Spending Calendar
-Heatmap.
-GitHub contribution style.
-■■□■■■■
-□□□□■■
-■■■■■■■
-Hover July 12
-        Spent ₹799
-This is a very modern feature.
+                        + Monthly Summary chart
 
 
-Budgeting + savings goals
+
+                        8. Spending Calendar
+                        Heatmap.
+                        GitHub contribution style.
+                        ■■□■■■■
+                        □□□□■■
+                        ■■■■■■■
+                        Hover July 12
+                                Spent ₹799
+
+                        Budgeting
+savings goals
 
 
 -Smart Insights (AI-ish)
