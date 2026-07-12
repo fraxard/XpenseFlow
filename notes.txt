@@ -1,9 +1,0 @@
-koulkoudakis / expense-income-tracker
-
-1. Export                               ✔
-2. Savings Goals
-3. User Authentication and DB
-4. Multi Currency and conversion
-5. Shared Household budgets
-6. Email / push notifications
-7. Bank sync ( maybe )
