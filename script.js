@@ -1,3 +1,33 @@
+/* ═══════════════════════════════════════════════════
+   NAMESPACE SHIM
+   Intercepts the four data keys so that logged-in users
+   get their own isolated localStorage namespace.
+   Must run before any other code in script.js.
+═══════════════════════════════════════════════════ */
+(function () {
+    const DATA_KEYS = ['transactions', 'recurringTemplates', 'budgets', 'customCategories'];
+
+    const _origGet    = localStorage.getItem.bind(localStorage);
+    const _origSet    = localStorage.setItem.bind(localStorage);
+    const _origRemove = localStorage.removeItem.bind(localStorage);
+
+    function _resolve(key) {
+        if (!DATA_KEYS.includes(key)) return key;
+        const user = JSON.parse(_origGet('xf_user') || 'null');
+        return user ? `${key}_${user.id}` : key;
+    }
+
+    localStorage.getItem = function (key) {
+        return _origGet(_resolve(key));
+    };
+    localStorage.setItem = function (key, value) {
+        return _origSet(_resolve(key), value);
+    };
+    localStorage.removeItem = function (key) {
+        return _origRemove(_resolve(key));
+    };
+})();
+
 const balance = document.getElementById('balance');
 const money_plus = document.getElementById('money-plus');
 const money_minus = document.getElementById('money-minus');

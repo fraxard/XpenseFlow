@@ -4,7 +4,7 @@
    in both index.html and reports.html
 ═══════════════════════════════════════════════════════════ */
 
-const API_BASE = 'http://localhost:3001/api';
+const API_BASE = `http://${window.location.hostname}:3001/api`;
 
 /* ── Token helpers ── */
 function getToken()         { return localStorage.getItem('xf_token'); }
@@ -38,8 +38,6 @@ async function authRegister(email, password, name) {
     });
     setToken(data.token);
     setAuthUser(data.user);
-    // Clear the import flag so the new account gets guest data pushed
-    sessionStorage.removeItem('xf_imported');
     return data.user;
 }
 
@@ -50,8 +48,6 @@ async function authLogin(email, password) {
     });
     setToken(data.token);
     setAuthUser(data.user);
-    // Clear the import flag so loadAll runs fresh
-    sessionStorage.removeItem('xf_imported');
     return data.user;
 }
 
@@ -64,19 +60,10 @@ async function authMe() {
 function authLogout() {
     clearToken();
     clearAuthUser();
-    sessionStorage.removeItem('xf_imported');
-    // On logout, wipe the localStorage cache so the next guest session starts fresh
-    // (keep currency and theme prefs)
-    const currency = localStorage.getItem('currency');
-    const theme    = localStorage.getItem('theme');
-    localStorage.removeItem('transactions');
-    localStorage.removeItem('recurringTemplates');
-    localStorage.removeItem('budgets');
-    localStorage.removeItem('customCategories');
-    if (currency) localStorage.setItem('currency', currency);
-    if (theme)    localStorage.setItem('theme', theme);
+    // NOTE: We do NOT wipe data keys. User's namespaced data (e.g. transactions_42)
+    // stays on this machine so they get it back on next login.
+    // Currency and theme prefs are always kept.
     renderAuthButton();
-    // Reload page to reinitialize the app in guest mode
     window.location.reload();
 }
 
@@ -236,17 +223,15 @@ function buildAuthModal() {
         setAuthBtnLoading(btn, true, 'Signing in…');
         try {
             const user = await authLogin(email, password);
+            // Migrate guest data → user namespace (only on first login on this machine)
+            if (window.DB) await window.DB.loadAll();
             closeAuthModal();
             renderAuthButton();
             showAuthToast(`Welcome back, ${user.name}!`);
-            // Sync data: import guest data or load from server
-            if (window.DB) {
-                await window.DB.importFromLocalStorage();
-                // Re-initialize the page with fresh data
-                if (typeof init === 'function') init();
-                if (typeof renderRecurringList === 'function') renderRecurringList();
-                if (typeof renderBudgetList    === 'function') renderBudgetList();
-            }
+            // Re-init the page so it reads from the user's namespace
+            if (typeof init === 'function') init();
+            if (typeof renderRecurringList === 'function') renderRecurringList();
+            if (typeof renderBudgetList    === 'function') renderBudgetList();
         } catch (err) {
             document.getElementById('auth-login-global-err').textContent = err.message;
         } finally {
@@ -270,15 +255,14 @@ function buildAuthModal() {
         setAuthBtnLoading(btn, true, 'Creating account…');
         try {
             const user = await authRegister(email, password, name);
+            // Migrate guest data → user namespace
+            if (window.DB) await window.DB.loadAll();
             closeAuthModal();
             renderAuthButton();
             showAuthToast(`Account created! Welcome, ${user.name} 🎉`);
-            if (window.DB) {
-                await window.DB.importFromLocalStorage();
-                if (typeof init === 'function') init();
-                if (typeof renderRecurringList === 'function') renderRecurringList();
-                if (typeof renderBudgetList    === 'function') renderBudgetList();
-            }
+            if (typeof init === 'function') init();
+            if (typeof renderRecurringList === 'function') renderRecurringList();
+            if (typeof renderBudgetList    === 'function') renderBudgetList();
         } catch (err) {
             document.getElementById('auth-reg-global-err').textContent = err.message;
         } finally {
@@ -357,7 +341,7 @@ function showAuthToast(message) {
 }
 
 /* ════════════════════════════════════════════════════════
-   BOOT
+   BOOT — validate token on page load
 ════════════════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', async () => {
     renderAuthButton();
@@ -365,13 +349,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const token = getToken();
     if (token) {
         try {
-            await authMe();
+            await authMe(); // re-validate token with server, refresh xf_user
             renderAuthButton();
-            // Load fresh data from server into localStorage cache
-            if (window.DB) {
-                await window.DB.loadAll();
-            }
         } catch {
+            // Token expired or invalid — log out silently
             clearToken();
             clearAuthUser();
             renderAuthButton();

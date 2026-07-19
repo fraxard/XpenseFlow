@@ -1,3 +1,32 @@
+/* ═══════════════════════════════════════════════════
+   NAMESPACE SHIM — prepend to top of reports.js
+   Redirects the four data keys to the user-namespaced
+   version when a user is logged in.
+═══════════════════════════════════════════════════ */
+(function () {
+    const DATA_KEYS = ['transactions', 'recurringTemplates', 'budgets', 'customCategories'];
+
+    const _origGet    = localStorage.getItem.bind(localStorage);
+    const _origSet    = localStorage.setItem.bind(localStorage);
+    const _origRemove = localStorage.removeItem.bind(localStorage);
+
+    function _resolve(key) {
+        if (!DATA_KEYS.includes(key)) return key;
+        const user = JSON.parse(_origGet('xf_user') || 'null');
+        return user ? `${key}_${user.id}` : key;
+    }
+
+    localStorage.getItem = function (key) {
+        return _origGet(_resolve(key));
+    };
+    localStorage.setItem = function (key, value) {
+        return _origSet(_resolve(key), value);
+    };
+    localStorage.removeItem = function (key) {
+        return _origRemove(_resolve(key));
+    };
+})();
+
 
 /* ═══════════════════════════════════════════
    THEME
