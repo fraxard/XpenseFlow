@@ -1002,6 +1002,19 @@ function buildRecurringModal() {
     let templates = getTemplates();
     if (editingRecId) {
       templates = templates.map(t => t.id === editingRecId ? tpl : t);
+
+      // ── Update all existing transactions that came from this template ──
+      transactions = transactions.map(t => {
+        if (t.recurringId !== editingRecId) return t;
+        return {
+          ...t,
+          text:     tpl.name,
+          category: tpl.category,
+          amount:   tpl.type === 'income' ? Math.abs(tpl.amount) : -Math.abs(tpl.amount),
+        };
+      });
+      updateLocalStorage();
+
     } else {
       templates.push(tpl);
     }
@@ -1010,6 +1023,7 @@ function buildRecurringModal() {
     closeRecurringModal();
     processRecurring();
     renderRecurringList();
+    init(); // re-render history list with updated amounts/names
   });
 }
 
