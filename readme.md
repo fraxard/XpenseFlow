@@ -2,7 +2,7 @@
 
 A personal finance and expense tracking web app. Track income and expenses, set budgets, manage recurring transactions, and generate detailed reports — all stored locally on your machine.
 
-![Version](https://img.shields.io/badge/version-0.75.2-blue) ![Stack](https://img.shields.io/badge/stack-Vanilla%20JS%20%2B%20Node.js-green)
+![Version](https://img.shields.io/badge/version-0.8-blue) ![Stack](https://img.shields.io/badge/stack-Vanilla%20JS%20%2B%20Node.js-green)
 
 ---
 
